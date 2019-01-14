@@ -43,6 +43,13 @@ dataSource::dataSource(bool server,int port, char *IP)
 	  mServer = false;
 	  mListening = false;
 	}
+
+#ifdef windows_OS
+	if (WSAStartup(MAKEWORD(1, 1), &wsaData) == SOCKET_ERROR) {
+		cout << "Error initialising WSA.\n";		
+	}
+#endif
+
 	//printf("New data source object!!! Source IP: %s listening %d\n",mSourceIP,server);
 }
 
@@ -74,7 +81,7 @@ void dataSource::tick()
 					if (mServer) tick();
 				}
 			} else {
-			  cout << " sending packet! " ;				
+			  //cout << " sending packet! " ;				
 				sendPacket();
 				if (mAlternating) {
 					mListening = true;
@@ -84,6 +91,7 @@ void dataSource::tick()
 			}
 		}
 	}
+	cout << "ending tick " << mCurrentTick << "\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +149,8 @@ void dataSource::connectListenSocket()
 	n = listen(mListenSockfd,10);
 	if (n == -1) //SOCKET_ERROR)
 	{
-	  cout << " listen socket error!\n";
+		int tmp = errno;
+	  cout << " listen socket error!  errno " << errno <<  "  " << strerror(tmp) << "\n";
 		return;
 	}
 	
@@ -253,6 +262,7 @@ void dataSource::connectSendSocket()
 	mReadyForRequests = true;
 
 	addBaseRequest();
+	addPhotoRequest();
 
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
@@ -275,14 +285,13 @@ void dataSource::connectSendSocket()
     source_addr.sin_family = AF_INET;
 	source_addr.sin_addr.s_addr = inet_addr( mSourceIP );
     source_addr.sin_port = htons(mPort);
-	
 	int connectCode = connect(mWorkSockfd,(struct sockaddr *) &source_addr,sizeof(source_addr));
 	if (connectCode < 0) 
 	{
-	  cout << "dataSource: ERROR connecting send socket: %d\n",connectCode;
+	  cout << "dataSource: ERROR connecting send socket, error: " << errno  << " mWorkdSockfd " << mWorkSockfd  << "\n";
 		return;
 	} else {		
-	  cout << "dataSource: SUCCESS connecting send socket: %d\n",connectCode;
+	  cout << "dataSource: SUCCESS connecting send socket:" << connectCode << " mWorkdSockfd " << mWorkSockfd << "\n";
 	}
 }
 
@@ -293,9 +302,12 @@ void dataSource::sendPacket()
   memcpy((void*)mStringBuffer,reinterpret_cast<void*>(&mSendControls),sizeof(short));
   memcpy((void*)&mStringBuffer[sizeof(short)],(void*)mSendBuffer,mPacketSize-sizeof(short));
   cout << " SENDING - " <<  mSendByteCounter  << " bytes! \n";
-  send(mWorkSockfd,mStringBuffer,mPacketSize,0);	
+  int n = send(mWorkSockfd,mStringBuffer,mPacketSize,0);	
+  if (n < 0)
+	  cout << "ERROR sending packet!  errno = " << errno << "\n";
+
   mLastSendTick = mCurrentTick;
-  cout << " clearing send packet! \n";
+  cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
   clearSendPacket();
 }
 
@@ -467,4 +479,18 @@ void dataSource::handleBaseRequest()
 	int tick = readInt();				
 	if (mServer) cout << "dataSource clientTick = " << tick << ", my tick " << mCurrentTick;
 	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
+}
+
+void dataSource::addPhotoRequest()
+{
+	short opcode = 15;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
+	mSendControls++;//Increment this every time you add a control.
+	writeShort(opcode);
+	writeInt(mCurrentTick);//Doesn't even matter what I send here, I am just firing off the command - but adding arguments
+	//could provide further direction re: file name and settings.
+}
+
+void dataSource::handlePhotoRequest()
+{
+	//Empty on this side, fires off on pi side.
 }

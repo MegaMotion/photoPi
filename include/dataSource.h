@@ -51,6 +51,7 @@ class dataSource
 #ifdef windows_OS
 	   SOCKET mListenSockfd;
 	   SOCKET mWorkSockfd;
+	   WSADATA wsaData;
 #else
 	   int mListenSockfd;
 	   int mWorkSockfd;
@@ -109,6 +110,9 @@ class dataSource
 
 	   void addBaseRequest();
 	   void handleBaseRequest();
+
+	   void addPhotoRequest();
+	   void handlePhotoRequest();
 };
 
 #endif // _DATASOURCE_H_
