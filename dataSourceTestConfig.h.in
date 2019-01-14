@@ -1,0 +1,3 @@
+// the configured options and settings for dataSourceTest
+#define dataSourceTest_VERSION_MAJOR @dataSourceTest_VERSION_MAJOR@
+#define dataSourceTest_VERSION_MINOR @dataSourceTest_VERSION_MINOR@
