@@ -2,7 +2,7 @@
 // Copyright (c) 2015 Chris Calef
 //-----------------------------------------------------------------------------
 
-#include "dataSource.h"
+#include "../include/dataSource.h"
 
 using namespace std;
 

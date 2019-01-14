@@ -6,7 +6,7 @@
 #define _DATASOURCE_H_
 
 /////// Comment this out for linux builds.   //////////////
-#define windows_OS 
+//#define windows_OS 
 ///////////////////////////////////////////////////////////
 
 #include <stdio.h>
