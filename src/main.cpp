@@ -30,9 +30,9 @@ int main(int argc, char* argv[])
   cout << "\n\n--- Data Source Socket Library Test Program ---\n  argc  " << argc  << "  server " << server << " port " << port << " IP " << IP << " \n\n";
   
   //sprintf(IP,"%s",argv[3]);
-  //cout << " IP: " << IP << "\n";
+  cout << " IP: " << IP << "\n";
   
-  dataSource *dS = new dataSource(server,port);
+  dataSource *dataSrc = new dataSource(server,port,IP);
   c = 0;
   
   //while (lastTime - startTime < 30)// (int c=0;c<80;c++)
@@ -42,12 +42,12 @@ int main(int argc, char* argv[])
     if (c % 100000000 == 0) //crude but simple
     {
       //lastTime = time(&timer);
-      dS->tick();
+      dataSrc->tick();
     }
     c++;
   }
   
-  delete dS;
+  delete dataSrc;
   
  
   return 0;

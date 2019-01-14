@@ -73,7 +73,7 @@ class dataSource
 	   short mReturnByteCounter;
 	   short mSendByteCounter;
 
-	   dataSource(bool listening, int port);
+	   dataSource(bool listening, int port, char *IP);
 	   ~dataSource();
 
 	   void tick();

@@ -8,7 +8,7 @@ using namespace std;
 
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
-dataSource::dataSource(bool server,int port)
+dataSource::dataSource(bool server,int port, char *IP)
 {
 	mPacketSize = 1024;
 	mSocketTimeout = 0;
@@ -18,20 +18,22 @@ dataSource::dataSource(bool server,int port)
 	mLastSendTimeMS = 0;
 	mTickInterval = 1;//45;
 	mTalkInterval = 20;
-	mStartDelay = 3;//50
+	mStartDelay = 5;//50
 	mPacketCount = 0;
 	mMaxPackets = 20;
 	mSendControls = 0;
 	mReturnByteCounter = 0;
 	mSendByteCounter = 0;
-	sprintf(mSourceIP,"127.0.0.1");//(IP argument)
+	//sprintf(mSourceIP,"192.68.1.32");//(IP argument)
+	sprintf(mSourceIP,IP);
+	//sprintf(mSourceIP,"10.0.0.242");
 	mListenSockfd = 0;//INVALID_SOCKET;
 	mWorkSockfd = 0;//INVALID_SOCKET;
 	mReturnBuffer = NULL;
 	mSendBuffer = NULL;
 	mStringBuffer = NULL;
 	mReadyForRequests = false;	
-	mAlternating = true;
+	mAlternating = false;
 	mConnectionEstablished = false;
 	if (server)
 	{
@@ -91,21 +93,20 @@ void dataSource::openListenSocket()
 	struct sockaddr_in source_addr;
 	//int n;
 
-	//Con::printf("connecting listen socket\n");
 	mListenSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mListenSockfd < 0) {
-	  //Con::printf("ERROR opening listen socket \n");
+	  cout << "ERROR opening listen socket \n";
 		return;
 	} else {
-	  //Con::printf("SUCCESS opening listen socket \n");
+	  cout << "SUCCESS opening listen socket \n";
 	}
 	
 	bool bOptVal = true;
 	//// lose the pesky "Address already in use" error message  - only for listen socket?
-	if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) {
-	  //Con::printf("FAILED to set socket options\n");
-		return;
-	} 
+	//if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) {
+	//  cout << "FAILED to set socket options\n";
+	//	return;
+	//} 
 
 #ifdef windows_OS
 	u_long iMode=1;
@@ -127,10 +128,9 @@ void dataSource::openListenSocket()
 	source_addr.sin_addr.s_addr = inet_addr( mSourceIP );
     source_addr.sin_port = htons(mPort);
 
-    if (bind(mListenSockfd, (struct sockaddr *) &source_addr,
-    		sizeof(source_addr)) < 0) 
-	  printf("ERROR on binding mListenSockfd\n");
-    else printf("SUCCESS binding mListenSockfd\n");
+	if (bind(mListenSockfd, (struct sockaddr *) &source_addr,sizeof(source_addr)) < 0) 
+	  cout << "ERROR on binding mListenSockfd\n";
+	else cout << "SUCCESS binding mListenSockfd\n";
 
 }
 
@@ -141,35 +141,62 @@ void dataSource::connectListenSocket()
 	n = listen(mListenSockfd,10);
 	if (n == -1) //SOCKET_ERROR)
 	{
-	  //Con::printf(" listen socket error!\n");
+	  cout << " listen socket error!\n";
 		return;
 	}
 	
+	cout << "Accepting work socket...\n";
 	mWorkSockfd = accept(mListenSockfd,NULL,NULL);
 	
-	if (mWorkSockfd == 0) //INVALID_SOCKET)
+	if (mWorkSockfd == -1) //INVALID_SOCKET)
 	{
-	  //Con::printf(".");
+	  cout << "waiting... worksock " << mWorkSockfd  << "\n";
 		return;
 	} else {
-	  //Con::printf("\nlisten accept succeeded!\n");
+	  cout << "\nlisten accept succeeded mPacketSize: " << mPacketSize << "\n";
+	  
 		mReturnBuffer = new char[mPacketSize];
 		memset((void *)(mReturnBuffer),0,mPacketSize);	
-		mReturnBuffer = new char[mPacketSize];
+	  
+	  	mSendBuffer = new char[mPacketSize];
 		memset((void *)(mSendBuffer),0,mPacketSize);
+	  
 		mStringBuffer = new char[mPacketSize];
 		memset((void *)(mStringBuffer),0,mPacketSize);	
+
 	}
 }
 
 void dataSource::listenForPacket()
 {
-  //Con::printf("dataSource listenForPacket");
 	mPacketCount = 0;
-	cout << " receiving packet? ";
+	if (mWorkSockfd == -1)
+	  mWorkSockfd = accept(mListenSockfd,NULL,NULL);
+
+	if (mWorkSockfd == -1) {
+	  cout << ",\n";
+		return;
+	}
+	if (!mReturnBuffer) {	    
+	  mReturnBuffer = new char[mPacketSize];
+	  memset((void *)(mReturnBuffer),0,mPacketSize);
+	}
+	if (!mSendBuffer) {
+	  mSendBuffer = new char[mPacketSize];
+	  memset((void *)(mSendBuffer),0,mPacketSize);
+	}
+	if (!mStringBuffer) { 
+	  mStringBuffer = new char[mPacketSize];
+	  memset((void *)(mStringBuffer),0,mPacketSize);
+	}
+	
+	cout << "Calling recv, workSock " << mWorkSockfd << "\n";
 	int n = recv(mWorkSockfd,mReturnBuffer,mPacketSize,0);
-	if (n<=0) {
-	  printf(".");
+	//int n = read(mWorkSockfd,mReturnBuffer,mPacketSize);
+	
+	cout << " receiving packet? n=" << n << "\n";
+	if (n<0) {
+	  cout << "ERROR : " << errno  << "  " << strerror(errno)  << "\n";
 		return;
 	}
 
@@ -197,9 +224,10 @@ void dataSource::readPacket()
 		opcode = readShort();
 		if (opcode==1) {   ////  keep contact, but no request /////////////////////////
 			int tick = readInt();				
-			//if (mServer) Con::printf("dataSource clientTick = %d, my tick %d",tick,mCurrentTick);
-			//else Con::printf("dataSource serverTick = %d, my tick %d",tick,mCurrentTick);
-		}// else if (opcode==22) { // send us some number of packets after this one
+		  if (mServer) cout << "dataSource clientTick = " << tick
+				    << ", my tick " << mCurrentTick << "\n";		
+		}
+		// else if (opcode==22) { // send us some number of packets after this one
 		//	packetCount = readShort();
 		//	if ((packetCount>0)&&(packetCount<=mMaxPackets))
 		//		mPacketCount = packetCount;
@@ -228,7 +256,7 @@ void dataSource::connectSendSocket()
 
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
-	  //Con::printf("ERROR opening send socket\n");
+	  cout << "ERROR opening send socket\n";
 		return;
 	}
 
@@ -251,20 +279,20 @@ void dataSource::connectSendSocket()
 	int connectCode = connect(mWorkSockfd,(struct sockaddr *) &source_addr,sizeof(source_addr));
 	if (connectCode < 0) 
 	{
-	  //Con::printf("dataSource: ERROR connecting send socket: %d\n",connectCode);
+	  cout << "dataSource: ERROR connecting send socket: %d\n",connectCode;
 		return;
 	} else {		
-	  //Con::printf("dataSource: SUCCESS connecting send socket: %d\n",connectCode);
+	  cout << "dataSource: SUCCESS connecting send socket: %d\n",connectCode;
 	}
 }
 
 void dataSource::sendPacket()
 {
-  cout << " setting up packet \n" ;
+  
   memset((void *)(mStringBuffer),0,mPacketSize);	
   memcpy((void*)mStringBuffer,reinterpret_cast<void*>(&mSendControls),sizeof(short));
   memcpy((void*)&mStringBuffer[sizeof(short)],(void*)mSendBuffer,mPacketSize-sizeof(short));
-  cout << " SENDING!! \n";
+  cout << " SENDING - " <<  mSendByteCounter  << " bytes! \n";
   send(mWorkSockfd,mStringBuffer,mPacketSize,0);	
   mLastSendTick = mCurrentTick;
   cout << " clearing send packet! \n";
@@ -430,12 +458,13 @@ void dataSource::addBaseRequest()
 	short opcode = 1;//base request
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
-	writeInt(mCurrentTick);//For a baseRequest, do nothing but send a tick value to make sure there's a connection.
+	writeInt(mCurrentTick);
+	//For a baseRequest, do nothing but send a tick value to make sure there's a connection.
 }
 
 void dataSource::handleBaseRequest()
 {	
 	int tick = readInt();				
-	//if (mServer) Con::printf("dataSource clientTick = %d, my tick %d",tick,mCurrentTick);
-	//else Con::printf("dataSource serverTick = %d, my tick %d",tick,mCurrentTick);
+	if (mServer) cout << "dataSource clientTick = " << tick << ", my tick " << mCurrentTick;
+	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
 }
