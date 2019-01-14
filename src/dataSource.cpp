@@ -236,6 +236,18 @@ void dataSource::readPacket()
 		  if (mServer) cout << "dataSource clientTick = " << tick
 				    << ", my tick " << mCurrentTick << "\n";		
 		}
+		else if (opcode == 15)
+		{
+		   int tick = readInt();	
+		   if (mServer)
+		   {
+		      cout << "PHOTO REQUEST, clientTick = " << tick <<
+				    ", my tick " << mCurrentTick << "\n";
+		      system("raspistill --output capture101.jpg");
+		   }
+		}
+
+		
 		// else if (opcode==22) { // send us some number of packets after this one
 		//	packetCount = readShort();
 		//	if ((packetCount>0)&&(packetCount<=mMaxPackets))

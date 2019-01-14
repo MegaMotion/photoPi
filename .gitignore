@@ -2,4 +2,8 @@ dataSourceTest
 dataSourceTest.exe
 *~
 *.bak
+*.jpg
+*.png
+*.bmp
+
 
