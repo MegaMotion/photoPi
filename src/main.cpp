@@ -38,14 +38,14 @@ int main(int argc, char* argv[])
   dataSource *dataSrc = new dataSource(server,port,IP);
   long int c = 0;
   //long int ms, lastMs;
-  while (loop < maxLoops)//FIX FIX FIX, get time.h included
+  while (loop < maxLoops)//(!dataSrc->mFinished)// //FIX FIX FIX, get time.h included
   {
     //crudest possible timer
     //if (c % 100000000 == 0) 
     //{
 		  dataSrc->tick();
 		  //lastMs = ms;
-		  cout << "ticking!!  loop = " << loop << "\n";
+		  //cout << "ticking!!  loop = " << loop << "\n";
 	  //}
 	  loop++;
     //}

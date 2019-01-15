@@ -18,7 +18,7 @@ dataSource::dataSource(bool server,int port, char *IP)
 	mLastSendTimeMS = 0;
 	mTickInterval = 1;//45;
 	mTalkInterval = 20;
-	mStartDelay = 5;//50
+	mStartDelay = 0;//50
 	mPacketCount = 0;
 	mMaxPackets = 20;
 	mSendControls = 0;
@@ -35,6 +35,7 @@ dataSource::dataSource(bool server,int port, char *IP)
 	mReadyForRequests = false;	
 	mAlternating = false;
 	mConnectionEstablished = false;
+	mFinished = false;
 	if (server)
 	{
 	  mServer = true;
@@ -62,9 +63,9 @@ dataSource::~dataSource()
 
 void dataSource::tick()
 {	
-  cout << "datasource tick " << mCurrentTick << "\n";
+  //cout << "datasource tick " << mCurrentTick << "\n";
   
-    if ((mCurrentTick++ % mTickInterval == 0)&&
+    if ( (mCurrentTick++ % mTickInterval == 0)&& //(!mFinished) && 
 		(mCurrentTick > mStartDelay)) 
 	{ 
 		if (mConnectionEstablished == false)
@@ -91,7 +92,7 @@ void dataSource::tick()
 			}
 		}
 	}
-	cout << "ending tick " << mCurrentTick << "\n";
+	//cout << "ending tick " << mCurrentTick << "\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +155,7 @@ void dataSource::connectListenSocket()
 		return;
 	}
 	
-	cout << "Accepting work socket...\n";
+	//cout << "Accepting work socket...\n";
 	mWorkSockfd = accept(mListenSockfd,NULL,NULL);
 	
 	if (mWorkSockfd == -1) //INVALID_SOCKET)
@@ -183,7 +184,7 @@ void dataSource::listenForPacket()
 	  mWorkSockfd = accept(mListenSockfd,NULL,NULL);
 
 	if (mWorkSockfd == -1) {
-	  cout << ",\n";
+	  //cout << ",\n";
 		return;
 	}
 	if (!mReturnBuffer) {	    
@@ -199,17 +200,17 @@ void dataSource::listenForPacket()
 	  memset((void *)(mStringBuffer),0,mPacketSize);
 	}
 	
-	cout << "Calling recv, workSock " << mWorkSockfd << "\n";
+	//cout << "Calling recv, workSock " << mWorkSockfd << "\n";
 	int n = recv(mWorkSockfd,mReturnBuffer,mPacketSize,0);
 	//int n = read(mWorkSockfd,mReturnBuffer,mPacketSize);
 	
-	cout << " receiving packet? n=" << n << "\n";
+	//cout << " receiving packet? n=" << n << "\n";
 	if (n<0) {
 	  cout << "ERROR : " << errno  << "  " << strerror(errno)  << "\n";
 		return;
 	}
 
-	cout << " reading packet! ";
+	//cout << " reading packet! ";
 	readPacket();
 }
 
@@ -232,19 +233,19 @@ void dataSource::readPacket()
 	{		
 		opcode = readShort();
 		if (opcode==1) {   ////  keep contact, but no request /////////////////////////
-			int tick = readInt();				
-		  if (mServer) cout << "dataSource clientTick = " << tick
-				    << ", my tick " << mCurrentTick << "\n";		
-		}
+			int tick = readInt();	
+		  }
+	}
 		// else if (opcode==22) { // send us some number of packets after this one
 		//	packetCount = readShort();
 		//	if ((packetCount>0)&&(packetCount<=mMaxPackets))
 		//		mPacketCount = packetCount;
 		//}
-	}
+	
 	
 	clearReturnPacket();
 }
+
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +263,8 @@ void dataSource::connectSendSocket()
 	mReadyForRequests = true;
 
 	addBaseRequest();
-	addPhotoRequest();
+	addPhotoRequest("test01.jpg");
+	mFinished = true;//New plan, just kill the whole process after this request goes out.
 
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
@@ -301,13 +303,13 @@ void dataSource::sendPacket()
   memset((void *)(mStringBuffer),0,mPacketSize);	
   memcpy((void*)mStringBuffer,reinterpret_cast<void*>(&mSendControls),sizeof(short));
   memcpy((void*)&mStringBuffer[sizeof(short)],(void*)mSendBuffer,mPacketSize-sizeof(short));
-  cout << " SENDING - " <<  mSendByteCounter  << " bytes! \n";
+  //cout << " SENDING - " <<  mSendByteCounter  << " bytes! \n";
   int n = send(mWorkSockfd,mStringBuffer,mPacketSize,0);	
   if (n < 0)
 	  cout << "ERROR sending packet!  errno = " << errno << "\n";
 
   mLastSendTick = mCurrentTick;
-  cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
+  //cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
   clearSendPacket();
 }
 
@@ -395,7 +397,7 @@ void dataSource::writeDouble(double value)
 	mSendByteCounter += sizeof(double);	
 }
 
-void dataSource::writeString(char *content)
+void dataSource::writeString(const char *content)
 {
 	int length = strlen(content);
 	writeInt(length);
@@ -481,13 +483,12 @@ void dataSource::handleBaseRequest()
 	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
 }
 
-void dataSource::addPhotoRequest()
+void dataSource::addPhotoRequest(const char *imgName)
 {
 	short opcode = 15;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
-	writeInt(mCurrentTick);//Doesn't even matter what I send here, I am just firing off the command - but adding arguments
-	//could provide further direction re: file name and settings.
+	writeString(imgName);
 }
 
 void dataSource::handlePhotoRequest()

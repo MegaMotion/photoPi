@@ -65,6 +65,7 @@ class dataSource
 	   bool mListening;
 	   bool mAlternating;
 	   bool mConnectionEstablished;
+	   bool mFinished;
 
 	   char *mReturnBuffer;
 	   char *mSendBuffer;
@@ -96,7 +97,7 @@ class dataSource
 	   void writeInt(int);
 	   void writeFloat(float);
 	   void writeDouble(double);
-	   void writeString(char *);
+	   void writeString(const char *content);
 	   //void writePointer(void *);//Someday? Using boost?
 
 	   short readShort();
@@ -111,7 +112,7 @@ class dataSource
 	   void addBaseRequest();
 	   void handleBaseRequest();
 
-	   void addPhotoRequest();
+	   void addPhotoRequest(const char *imgName);
 	   void handlePhotoRequest();
 };
 
