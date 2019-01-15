@@ -29,25 +29,27 @@ int main(int argc, char* argv[])
     server = atoi(argv[1]);
     port = atoi(argv[2]);
     strcpy(IP,argv[3]);
-	maxLoops = atoi(argv[4]);
+    maxLoops = atoi(argv[4]);
   }
   
   cout << "\n\n--- Data Source Socket Library Test Program ---\n  arg count  " << argc  << "  server " << server << 
-	  " port " << port << " maxLoops " << maxLoops << " IP " << IP << " \n\n";
+	  " port " << port <<  " IP " << IP << " \n\n";
   
   dataSource *dataSrc = new dataSource(server,port,IP);
   long int c = 0;
   //long int ms, lastMs;
-  while (loop < maxLoops)//FIX FIX FIX, get time.h included
+
+  //FIX, get time.h or chrono in here, so we don't have to run a while loop at top speed while we're waiting.
+  while ( !(dataSrc->mFinished) )  // && (loop < maxLoops) 
   {
     //crudest possible timer
     //if (c % 100000000 == 0) 
     //{
 		  dataSrc->tick();
 		  //lastMs = ms;
-		  cout << "ticking!!  loop = " << loop << "\n";
+		  //cout << "ticking!!  loop = " << loop << "\n";
 	  //}
-	  loop++;
+	  //loop++;
     //}
     //c++;
   }

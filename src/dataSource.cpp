@@ -18,13 +18,12 @@ dataSource::dataSource(bool server,int port, char *IP)
 	mLastSendTimeMS = 0;
 	mTickInterval = 1;//45;
 	mTalkInterval = 20;
-	mStartDelay = 5;//50
+	mStartDelay = 0;//50
 	mPacketCount = 0;
 	mMaxPackets = 20;
 	mSendControls = 0;
 	mReturnByteCounter = 0;
 	mSendByteCounter = 0;
-	//sprintf(mSourceIP,"192.68.1.32");//(IP argument)
 	sprintf(mSourceIP,IP);
 	//sprintf(mSourceIP,"10.0.0.242");
 	mListenSockfd = 0;//INVALID_SOCKET;
@@ -62,18 +61,18 @@ dataSource::~dataSource()
 
 void dataSource::tick()
 {	
-  cout << "datasource tick " << mCurrentTick << "\n";
+  //cout << "datasource tick " << mCurrentTick << "\n";
   
-    if ((mCurrentTick++ % mTickInterval == 0)&&
+  if ((!mFinished) && (mCurrentTick++ % mTickInterval == 0) &&
 		(mCurrentTick > mStartDelay)) 
 	{ 
 		if (mConnectionEstablished == false)
 		{
-			  cout << " trying sockets!! " ;
+		  //cout << " trying sockets!! " ;
 			trySockets();
 		} else {
 			if (mListening) {
-			  cout << " listening for packet! " ;
+			  cout << " listening for packet! " << mCurrentTick << "\n"  ;
 				listenForPacket();
 				if (mAlternating) {
 					mListening = false;
@@ -91,7 +90,7 @@ void dataSource::tick()
 			}
 		}
 	}
-	cout << "ending tick " << mCurrentTick << "\n";
+  //cout << "ending tick " << mCurrentTick << "\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +182,7 @@ void dataSource::listenForPacket()
 	  mWorkSockfd = accept(mListenSockfd,NULL,NULL);
 
 	if (mWorkSockfd == -1) {
-	  cout << ",\n";
+	  //cout << ",\n";
 		return;
 	}
 	if (!mReturnBuffer) {	    
@@ -213,16 +212,6 @@ void dataSource::listenForPacket()
 	readPacket();
 }
 
-	//for (int j=0;j<mPacketCount;j++)
-	//{
-	//	n = recv(mWorkSockfd,mReturnBuffer,mPacketSize,0);
-	//	if (n<=0) j--;
-	//	else {
-	//		readPacket();
-	//	}
-	//}
-
-
 void dataSource::readPacket()
 {
 	short opcode,controlCount;//,packetCount;
@@ -238,12 +227,15 @@ void dataSource::readPacket()
 		}
 		else if (opcode == 15)
 		{
-		   int tick = readInt();	
-		   if (mServer)
+		  //int tick = readInt();
+		   char imgName[512],command[512];
+		   readString();
+		   if (mServer && strlen(mStringBuffer)>0 )
 		   {
-		      cout << "PHOTO REQUEST, clientTick = " << tick <<
-				    ", my tick " << mCurrentTick << "\n";
-		      system("raspistill --output capture101.jpg");
+		     sprintf(command,"%s %s","raspistill --output ",mStringBuffer);		   
+		     system(command);
+		     cout  << "Executing command: [" << command << "]\n";
+		     mFinished = true;//For now, bail after one photo.
 		   }
 		}
 
@@ -274,7 +266,7 @@ void dataSource::connectSendSocket()
 	mReadyForRequests = true;
 
 	addBaseRequest();
-	addPhotoRequest();
+	addPhotoRequest("test01.jpg");
 
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
@@ -407,7 +399,7 @@ void dataSource::writeDouble(double value)
 	mSendByteCounter += sizeof(double);	
 }
 
-void dataSource::writeString(char *content)
+void dataSource::writeString(const char *content)
 {
 	int length = strlen(content);
 	writeInt(length);
@@ -462,6 +454,7 @@ char *dataSource::readString()
 	int length = readInt();
 	strncpy(mStringBuffer,&mReturnBuffer[mReturnByteCounter],length);
 	mReturnByteCounter += length;
+	//cout << "READING STRING: " << mStringBuffer << "\n";
 	return mStringBuffer;
 }
 
@@ -493,12 +486,12 @@ void dataSource::handleBaseRequest()
 	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
 }
 
-void dataSource::addPhotoRequest()
+void dataSource::addPhotoRequest(const char *imgName)
 {
 	short opcode = 15;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
-	writeInt(mCurrentTick);//Doesn't even matter what I send here, I am just firing off the command - but adding arguments
+	writeString(imgName);//Doesn't even matter what I send here, I am just firing off the command - but adding arguments
 	//could provide further direction re: file name and settings.
 }
 
