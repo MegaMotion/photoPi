@@ -72,7 +72,7 @@ void dataSource::tick()
 			trySockets();
 		} else {
 			if (mListening) {
-			  cout << " listening for packet! " << mCurrentTick << "\n"  ;
+			  //cout << " listening for packet! " << mCurrentTick << "\n"  ;
 				listenForPacket();
 				if (mAlternating) {
 					mListening = false;
@@ -198,17 +198,17 @@ void dataSource::listenForPacket()
 	  memset((void *)(mStringBuffer),0,mPacketSize);
 	}
 	
-	cout << "Calling recv, workSock " << mWorkSockfd << "\n";
+	//cout << "Calling recv, workSock " << mWorkSockfd << "\n";
 	int n = recv(mWorkSockfd,mReturnBuffer,mPacketSize,0);
 	//int n = read(mWorkSockfd,mReturnBuffer,mPacketSize);
 	
-	cout << " receiving packet? n=" << n << "\n";
+	//cout << " receiving packet? n=" << n << "\n";
 	if (n<0) {
 	  cout << "ERROR : " << errno  << "  " << strerror(errno)  << "\n";
 		return;
 	}
 
-	cout << " reading packet! ";
+	//cout << " reading packet! ";
 	readPacket();
 }
 
@@ -220,6 +220,8 @@ void dataSource::readPacket()
 	for (short i=0;i<controlCount;i++)
 	{		
 		opcode = readShort();
+
+		cout << "Reading packet, opcode = " << opcode << "\n";
 		if (opcode==1) {   ////  keep contact, but no request /////////////////////////
 			int tick = readInt();				
 		  if (mServer) cout << "dataSource clientTick = " << tick
@@ -235,7 +237,8 @@ void dataSource::readPacket()
 		     sprintf(command,"%s %s","raspistill --output ",mStringBuffer);		   
 		     system(command);
 		     cout  << "Executing command: [" << command << "]\n";
-		     mFinished = true;//For now, bail after one photo.
+		     mWorkSockfd = -1;
+		     //mFinished = true;//For now, bail after one photo.
 		   }
 		}
 
