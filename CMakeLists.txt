@@ -18,7 +18,6 @@ configure_file (
 # so that we will find dataSourceTestConfig.h
 include_directories( ${PROJECT_BINARY_DIR} include )
 
-
 set(SOURCES src/main.cpp src/dataSource.cpp)
 
 add_executable(dataSourceTest ${SOURCES})

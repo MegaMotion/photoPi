@@ -3,6 +3,7 @@
 //-----------------------------------------------------------------------------
 
 #include "dataSource.h"
+//#include "tinyxml.h"
 
 using namespace std;
 
@@ -70,11 +71,11 @@ void dataSource::tick()
 	{ 
 		if (mConnectionEstablished == false)
 		{
-			  cout << " trying sockets!! " ;
+			//cout << " trying sockets!! ";
 			trySockets();
 		} else {
 			if (mListening) {
-			  cout << " listening for packet! " ;
+			  //cout << " listening for packet! " ;
 				listenForPacket();
 				if (mAlternating) {
 					mListening = false;
@@ -82,17 +83,52 @@ void dataSource::tick()
 					if (mServer) tick();
 				}
 			} else {
-			  //cout << " sending packet! " ;				
-				sendPacket();
-				if (mAlternating) {
-					mListening = true;
-					if (!mServer) tick();
-				} else 
-					addBaseRequest();
+				//cout << " sending packet! " ;		
+				//TEMP? turning this off for the one shot camera loop request version.
+				//sendPacket(); 
+				//if (mAlternating) {
+				//	mListening = true;
+				//	if (!mServer) tick();
+				//} else 
+				//	addBaseRequest();
 			}
 		}
 	}
 	//cout << "ending tick " << mCurrentTick << "\n";
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+
+void dataSource::trySockets()
+{
+	if (mServer)
+	{
+		//cout << " server ... ";
+		if (mListenSockfd == 0) { //INVALID_SOCKET) {
+								  //cout << " openListenSocket ... \n\n";
+			openListenSocket();
+		}
+		else if (mWorkSockfd == 0) { //INVALID_SOCKET) {
+									 //cout << " connectListenSocket ...  \n\n";
+			connectListenSocket();
+		}
+		else {
+			//cout << " ListenForPacket ...  \n\n";
+			listenForPacket();
+			mConnectionEstablished = true;
+		}
+	}
+	else {
+		if (mWorkSockfd == 0) { //INVALID_SOCKET) {
+			//cout << " connectSendSocket()... \n\n";
+			connectSendSocket();//We are now doing all the work here, and calling ourselves finished.
+		}
+		else { //Actually, in this application we don't even need this section.
+			//cout << " sendPacket()... \n\n";
+			sendPacket();
+			mConnectionEstablished = true;
+		}
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +187,7 @@ void dataSource::connectListenSocket()
 	if (n == -1) //SOCKET_ERROR)
 	{
 		int tmp = errno;
-	  cout << " listen socket error!  errno " << errno <<  "  " << strerror(tmp) << "\n";
+		cout << " listen socket error!  errno " << errno <<  "  " << strerror(tmp) << "\n";
 		return;
 	}
 	
@@ -252,7 +288,8 @@ void dataSource::readPacket()
 void dataSource::connectSendSocket()
 {
 	struct sockaddr_in source_addr;
-	
+	FILE *fp;
+
 	mReturnBuffer = new char[mPacketSize];	
 	mSendBuffer = new char[mPacketSize];		
 	mStringBuffer = new char[mPacketSize];
@@ -262,39 +299,72 @@ void dataSource::connectSendSocket()
 
 	mReadyForRequests = true;
 
-	addBaseRequest();
-	addPhotoRequest("test01.jpg");
-	mFinished = true;//New plan, just kill the whole process after this request goes out.
 
-	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
-	if (mWorkSockfd < 0) {
-	  cout << "ERROR opening send socket\n";
+	//Next, we are going to open up our text file, cameraIPs.txt, and run through a list of IPs instead of just one.
+	fp = fopen(mSourceIP, "r");//TESING: overrode 
+	if (fp == NULL)
+	{
+		cout << "ERROR: can't open IPs file: " << mSourceIP << "\n";
 		return;
 	}
+	else cout << "opened IPs file: " << mSourceIP << "\n";
 
-	//if (windows)
-	//u_long iMode=1;
-	//ioctlsocket(mWorkSockfd,O_NONBLOCK,&iMode);//Make it a non-blocking socket.
-	//endif
+	char IP[16],IP_stripped[16];
+	string filename,IPstring;
 	
+	fgets(IP, 16, fp);
+	IP[strcspn(IP, "\n")] = 0;//Strip off the carriage return.
+	IPstring = IP;
+	filename = mOutputName;
+	filename.append(".");
+	filename.append(IP);
+	filename.append(".png");
+	cout << "output filename: " << filename.c_str() << "\n";
+	while (strlen(IP) > 0)
+	{
+		//addBaseRequest();
+
+		//APPLICATION SPECIFIC MODIFICAITON:
+		addPhotoRequest();
+
+		//mFinished = true;//New plan, just kill the whole process after this request goes out.
+
+		mWorkSockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (mWorkSockfd < 0) {
+			cout << "ERROR opening send socket\n";
+			return;
+		}
+
 
 #ifdef windows_OS
-	ZeroMemory((char *)&source_addr, sizeof(source_addr));
+		ZeroMemory((char *)&source_addr, sizeof(source_addr));
 #else
-	bzero((char *)&source_addr, sizeof(source_addr));
+		bzero((char *)&source_addr, sizeof(source_addr));
 #endif
 
-    source_addr.sin_family = AF_INET;
-	source_addr.sin_addr.s_addr = inet_addr( mSourceIP );
-    source_addr.sin_port = htons(mPort);
-	int connectCode = connect(mWorkSockfd,(struct sockaddr *) &source_addr,sizeof(source_addr));
-	if (connectCode < 0) 
-	{
-	  cout << "dataSource: ERROR connecting send socket, error: " << errno  << " mWorkdSockfd " << mWorkSockfd  << "\n";
-		return;
-	} else {		
-	  cout << "dataSource: SUCCESS connecting send socket:" << connectCode << " mWorkdSockfd " << mWorkSockfd << "\n";
+		source_addr.sin_family = AF_INET;
+		//source_addr.sin_addr.s_addr = inet_addr( mSourceIP );
+		source_addr.sin_addr.s_addr = inet_addr(IP);
+		source_addr.sin_port = htons(mPort);
+		int connectCode = connect(mWorkSockfd, (struct sockaddr *) &source_addr, sizeof(source_addr));
+		if (connectCode < 0)
+		{
+			cout << "dataSource: ERROR connecting send socket, error: " << errno << " mWorkdSockfd " << mWorkSockfd << "\n";
+			return;
+		}
+		else {
+			cout << "dataSource: SUCCESS connecting send socket:" << connectCode << " mWorkdSockfd " << mWorkSockfd << "\n";
+			sendPacket();
+		}
+
+		//Clear and load the next IP from the file.
+		strcpy(IP, "");//Unnecessary?
+		fgets(IP, 16, fp);
 	}
+
+
+	fclose(fp);
+	
 }
 
 void dataSource::sendPacket()
@@ -309,7 +379,7 @@ void dataSource::sendPacket()
 	  cout << "ERROR sending packet!  errno = " << errno << "\n";
 
   mLastSendTick = mCurrentTick;
-  //cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
+  cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
   clearSendPacket();
 }
 
@@ -330,35 +400,6 @@ void dataSource::clearReturnPacket()
 	mReturnByteCounter = 0;	
 }
 /////////////////////////////////////////////////////////////////////////////////
-
-void dataSource::trySockets()
-{
-  if (mServer)
-    {
-      cout << " server ... " ;
-      if (mListenSockfd == 0) { //INVALID_SOCKET) {
-	cout << " openListenSocket ... \n\n" ;
-	    openListenSocket();
-      } else if (mWorkSockfd ==  0) { //INVALID_SOCKET) {
-	cout << " connectListenSocket ...  \n\n" ;
-	connectListenSocket();
-      } else {
-	cout << " ListenForPacket ...  \n\n" ;
-	listenForPacket();
-	mConnectionEstablished = true;
-      }
-    } else {
-      cout << " client ... " ;
-    if (mWorkSockfd ==  0) { //INVALID_SOCKET) {
-      cout << " connectSendSocket()... \n\n";      
-      connectSendSocket();
-    } else {
-      cout << " sendPacket()... \n\n";   
-      sendPacket();
-      mConnectionEstablished = true;
-    }
-  }
-}
 
 void dataSource::disconnectSockets()
 {
@@ -469,6 +510,7 @@ void dataSource::clearString()
 
 void dataSource::addBaseRequest()
 {	
+	cout << "Adding base request! tick " << mCurrentTick << "\n";
 	short opcode = 1;//base request
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
@@ -483,12 +525,119 @@ void dataSource::handleBaseRequest()
 	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
 }
 
-void dataSource::addPhotoRequest(const char *imgName)
+void dataSource::addPhotoRequest()
 {
-	short opcode = 15;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
+	short configs = 0;
+
+	string strLine;
+
+	string strOutput;
+	string strTime;
+	string strIso;
+	string strImageEffect;
+	string strColorEffect;
+	string strExposureMode;
+	string strAwbMode;
+	string strShutterSpeed;
+	string strFlickerAvoid;
+	string strDrc;
+	string strImgWidth;
+	string strImgHeight;
+	string strJpgQuality;
+	string strEncoding;
+
+	string strOptions;
+
+	char line[72];
+	char label[36];
+	char value[36];
+
+	strOptions = "";
+
+	//First, open config text file, load values for raspistill.
+	FILE *fp = fopen("config.txt", "r");//TESING: overrode 
+	while (fgets(line, 72, fp))
+	{
+		line[strcspn(line, "\n")] = 0;//Strip off the carriage return.
+
+									  //Bail here if this is a comment or the line doesn't have an equals sign in it.
+		if ((line[0] == '#') || !(strstr(line, "=")))
+			continue;
+
+		//Convert it to std::string.
+		strLine = line;
+		cout << "LINE: " << line << "\n";
+		sprintf(label, strLine.substr(0, strLine.find('=')).c_str());
+		sprintf(value, strLine.substr(strLine.find('=') + 1).c_str());
+		if (strlen(value) == 0)
+			continue;
+
+		
+		if (!strcmp(label, "OUTPUT"))
+		{
+			strOutput = " -o "; strOutput.append(value); strOptions.append(strOutput);
+		}
+		else if (!strcmp(label, "TIME"))
+		{
+			strTime = " -t "; strTime.append(value); strOptions.append(strTime);
+		}
+		else if (!strcmp(label, "ISO"))
+		{
+			strIso = " -ISO "; strIso.append(value); strOptions.append(strIso);
+		}
+		else if (!strcmp(label, "IMAGE_EFFECT"))
+		{
+			strImageEffect = " -ifx "; strImageEffect.append(value); strOptions.append(strImageEffect);
+		}
+		else if (!strcmp(label, "COLOR_EFECT"))
+		{
+			strColorEffect = " -cfx "; strColorEffect.append(value); strOptions.append(strColorEffect);
+		}
+		else if (!strcmp(label, "EXPOSURE_MODE"))
+		{
+			strExposureMode = " -ex "; strExposureMode.append(value); strOptions.append(strExposureMode);
+		}
+		else if (!strcmp(label, "AWB_MODE"))
+		{
+			strAwbMode = " -awb "; strAwbMode.append(value); strOptions.append(strAwbMode);
+		}
+		else if (!strcmp(label, "SHUTTER_SPEED"))
+		{
+			strShutterSpeed = " -ss "; strShutterSpeed.append(value); strOptions.append(strShutterSpeed);
+		}
+		else if (!strcmp(label, "FLICKER_AVOID"))
+		{
+			strFlickerAvoid = " -fli "; strFlickerAvoid.append(value); strOptions.append(strFlickerAvoid);
+		}
+		else if (!strcmp(label, "DRC"))
+		{
+			strDrc = " -drc "; strDrc.append(value); strOptions.append(strDrc);
+		}
+		else if (!strcmp(label, "IMAGE_WIDTH"))
+		{
+			strImgWidth = " -w "; strImgWidth.append(value); strOptions.append(strImgWidth);
+		}
+		else if (!strcmp(label, "IMAGE_HEIGHT"))
+		{
+			strImgHeight = " -h "; strImgHeight.append(value); strOptions.append(strImgHeight);
+		}
+		else if (!strcmp(label, "JPG_QUALITY"))
+		{
+			strJpgQuality = " -q "; strJpgQuality.append(value); strOptions.append(strJpgQuality);
+		}
+		else if (!strcmp(label, "ENCODING"))
+		{
+			strEncoding = " -e "; strEncoding.append(value); strOptions.append(strEncoding);
+		}
+	}
+	fclose(fp);
+
+	cout << "OPTIONS: " << strOptions.c_str() << "\n";
+
+	short opcode = 51;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
-	writeString(imgName);
+	writeString(strOptions.c_str());
 }
 
 void dataSource::handlePhotoRequest()

@@ -33,7 +33,8 @@
 class dataSource 
 {
    public:
-	   char mSourceIP[16];//FIX, size up for v6
+	   char mSourceIP[36];
+	   char mOutputName[256];
 	   unsigned int mPort;
 
 	   unsigned int mCurrentTick;
@@ -112,7 +113,7 @@ class dataSource
 	   void addBaseRequest();
 	   void handleBaseRequest();
 
-	   void addPhotoRequest(const char *imgName);
+	   void addPhotoRequest();
 	   void handlePhotoRequest();
 };
 
