@@ -37,7 +37,7 @@ dataSource::dataSource(bool server,int port, char *IP)
 	mReadyForRequests = false;	
 	mAlternating = false;
 
-	mDebugToConsole = true;
+	mDebugToConsole = false;
 	mDebugToFile = false;
 	
 	mServerStage = NoServerSocket;
