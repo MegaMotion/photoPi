@@ -27,7 +27,23 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define OPCODE_BASE		1
+enum serverConnectStage {
+  NoServerSocket,
+  ServerSocketCreated,
+  ServerSocketBound,
+  ServerSocketListening,
+  ServerSocketAccepted,
+  PacketReceived,
+  PacketRead
+};
+  
+enum clientConnectStage {
+  NoClientSocket,
+  ClientSocketCreated,
+  ClientSocketConnected,
+  PacketSent  
+};
+
 
 /// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
 class dataSource 
@@ -40,11 +56,13 @@ class dataSource
 	   unsigned int mLastSendTick;//Last time we sent a packet.
 	   unsigned int mLastSendTimeMS;//Last time we sent a packet.
 	   unsigned int mTickInterval;
-	   unsigned int mTalkInterval;
-	   unsigned int mStartDelay;
+	   unsigned int mStartDelayMS;
 	   unsigned int mPacketCount;
 	   unsigned int mMaxPackets;
 	   unsigned int mPacketSize;
+
+	   serverConnectStage mServerStage;
+	   clientConnectStage mClientStage;
 
 	   bool mReadyForRequests;//flag to user class (eg terrainPager) that we can start adding requests.
 
@@ -59,13 +77,12 @@ class dataSource
 	   fd_set mMasterFDS;
 	   fd_set mReadFDS;
 
-	   int mSocketTimeout;
-	   
 	   bool mServer;
 	   bool mListening;
 	   bool mAlternating;
-	   bool mConnectionEstablished;
-	   bool mFinished;
+
+	   bool mDebugToConsole;
+	   bool mDebugToFile;
 
 	   char *mReturnBuffer;
 	   char *mSendBuffer;
@@ -75,22 +92,26 @@ class dataSource
 	   short mReturnByteCounter;
 	   short mSendByteCounter;
 
+	   FILE *mDebugLog;
+
 	   dataSource(bool listening, int port, char *IP);
 	   ~dataSource();
 
 	   void tick();
 	   
-	   void openListenSocket();
+	   void createListenSocket();
+	   void bindListenSocket();
 	   void connectListenSocket();
-	   void listenForPacket();
+	   void listenForConnection();
+	   void receivePacket();
 	   void readPacket();
 	   void clearReturnPacket();
+	   void allocateBuffers();
 
 	   void connectSendSocket();
 	   void sendPacket();
 	   void clearSendPacket();
 	   
-	   void trySockets();
 	   void disconnectSockets();	  
 
 	   void writeShort(short);

@@ -6,41 +6,49 @@
 
 using namespace std;
 
+
+#define OPCODE_BASE    1
+#define OPCODE_PHOTO  51
+
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
 dataSource::dataSource(bool server,int port, char *IP)
 {
+	mPort = port;
+	sprintf(mSourceIP,IP);
 	mPacketSize = 1024;
-	mSocketTimeout = 0;
-	mPort = port;//9984
 	mCurrentTick = 0;
 	mLastSendTick = 0;
 	mLastSendTimeMS = 0;
-	mTickInterval = 1;//45;
-	mTalkInterval = 20;
-	mStartDelay = 0;//50
+	mTickInterval = 1;//For skipping ticks, in case they are getting called faster than desired.
+	mStartDelayMS = 1000;
 	mPacketCount = 0;
 	mMaxPackets = 20;
 	mSendControls = 0;
 	mReturnByteCounter = 0;
 	mSendByteCounter = 0;
-	sprintf(mSourceIP,IP);
-	//sprintf(mSourceIP,"10.0.0.242");
-	mListenSockfd = 0;//INVALID_SOCKET;
-	mWorkSockfd = 0;//INVALID_SOCKET;
+		
+	mListenSockfd = 0;
+	mWorkSockfd = 0;
+	
 	mReturnBuffer = NULL;
 	mSendBuffer = NULL;
 	mStringBuffer = NULL;
 	mReadyForRequests = false;	
 	mAlternating = false;
-	mConnectionEstablished = false;
+
+	mDebugToConsole = true;
+	mDebugToFile = false;
+	
+	mServerStage = NoServerSocket;
+	mClientStage = NoClientSocket;
+	
+	mServer = false;
+	mListening = false;	
 	if (server)
 	{
 	  mServer = true;
 	  mListening = true;
-	} else {
-	  mServer = false;
-	  mListening = false;
 	}
 
 #ifdef windows_OS
@@ -49,71 +57,92 @@ dataSource::dataSource(bool server,int port, char *IP)
 	}
 #endif
 
-	//printf("New data source object!!! Source IP: %s listening %d\n",mSourceIP,server);
+	if (mDebugToFile)
+	{
+	  mDebugLog = fopen("/home/pi/photoPi/log.txt","a");
+	  fprintf(mDebugLog,"\n\n--------------------------- PhotoPi Debug Log\n\n");
+	}
+
+
+	//Now, break for some number of milliseconds, to let system get on wifi network, etc. ... ?
+#ifdef windows_OS
+	Sleep(mStartDelayMS);
+#else		  
+	timespec time1, time2;
+	time1.tv_sec = 0;
+	time1.tv_nsec = mStartDelayMS * 1000000L;//Ten times one million nanoseconds, or 10 milliseconds.
+	nanosleep(&time1, &time2);//Time one is requested, Time two is for leftovers if interrupted.
+#endif
+	
 }
 
 dataSource::~dataSource()
 {
 	disconnectSockets();
+  if (mDebugToFile)
+    fclose(mDebugLog);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void dataSource::tick()
 {	
-  //cout << "datasource tick " << mCurrentTick << "\n";
-  
-  if ((!mFinished) && (mCurrentTick++ % mTickInterval == 0) &&
-		(mCurrentTick > mStartDelay)) 
+  if (mServer)
 	{ 
-		if (mConnectionEstablished == false)
+    switch (mServerStage)
 		{
-		  //cout << " trying sockets!! " ;
-			trySockets();
-		} else {
-			if (mListening) {
-			  //cout << " listening for packet! " << mCurrentTick << "\n"  ;
-				listenForPacket();
-				if (mAlternating) {
-					mListening = false;
-					addBaseRequest();
-					if (mServer) tick();
-				}
-			} else {
-			  //cout << " sending packet! " ;				
-				sendPacket();
-				if (mAlternating) {
-					mListening = true;
-					if (!mServer) tick();
-				} else 
-					addBaseRequest();
-			}
+    case NoServerSocket:
+	createListenSocket(); break;
+      case ServerSocketCreated:
+	bindListenSocket(); break;
+      case ServerSocketBound:
+	connectListenSocket(); break;
+      case ServerSocketListening:
+	listenForConnection(); break;
+      case ServerSocketAccepted:
+	receivePacket(); break;
+      case PacketReceived:
+	readPacket(); break;
+      case PacketRead:
+	mServerStage = ServerSocketListening;
+	break;
+    }
+  }
+  else
+  {
+    switch (mClientStage)
+    {
+      case NoClientSocket:
+	break;
+      case ClientSocketCreated:
+	break;
+      case ClientSocketConnected:
+	break;
+      case PacketSent:
+	break;
 		}
 	}
-  //cout << "ending tick " << mCurrentTick << "\n";
 }
 
 /////////////////////////////////////////////////////////////////////////////////
 
-void dataSource::openListenSocket()
+void dataSource::createListenSocket()
 {
-	struct sockaddr_in source_addr;
-	//int n;
-
 	mListenSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
-	if (mListenSockfd < 0) {
-	  cout << "ERROR opening listen socket \n";
-		return;
+	if (mListenSockfd < 0)
+	{
+	  if (mDebugToConsole)
+	    cout << "ERROR in createListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"ERROR in createListenSocket. Error: %d %s\n",errno,strerror(errno));
 	} else {
-	  cout << "SUCCESS opening listen socket \n";
+	  if (mDebugToConsole)
+	    cout << "SUCCESS in createListenSocket\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"SUCCESS in createListenSocket\n");
+	  mServerStage = serverConnectStage::ServerSocketCreated;
 	}
 	
-	bool bOptVal = true;
-	//// lose the pesky "Address already in use" error message  - only for listen socket?
-	//if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) {
-	//  cout << "FAILED to set socket options\n";
-	//	return;
-	//} 
 
 #ifdef windows_OS
 	u_long iMode=1;
@@ -123,7 +152,16 @@ void dataSource::openListenSocket()
 	flags = fcntl(mListenSockfd,F_GETFL,0);
 	if (flags != -1)
 	  fcntl(mListenSockfd, F_SETFL, flags | O_NONBLOCK);
-#endif //Unix equivalent?? Or do it in setsockopt?
+	
+	bool bOptVal = true;
+	if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) 
+	  cout << "FAILED to set socket option ReuseAddress\n";			
+#endif
+}
+
+void dataSource::bindListenSocket()
+{  
+	struct sockaddr_in source_addr;
 	
 #ifdef windows_OS
 	ZeroMemory((char *) &source_addr, sizeof(source_addr));
@@ -136,123 +174,128 @@ void dataSource::openListenSocket()
     source_addr.sin_port = htons(mPort);
 
 	if (bind(mListenSockfd, (struct sockaddr *) &source_addr,sizeof(source_addr)) < 0) 
-	  cout << "ERROR on binding mListenSockfd\n";
-	else cout << "SUCCESS binding mListenSockfd\n";
+	{
+	  if (mDebugToConsole)
+	    cout << "ERROR in bindListenSocket. Error: " <<  errno <<  " " << strerror(errno) << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"ERROR in bindListenSocket. Error: %d  %s\n\n",errno,strerror(errno));
+	}
+	else
+	{
+	  if (mDebugToConsole)
+	    cout << "SUCCESS in bindListenSocket " << mListenSockfd << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"SUCCESS in bindListenSocket %d \n",mListenSockfd);
+	  mServerStage = ServerSocketBound;
+	}
 
 }
 
 void dataSource::connectListenSocket()
 {
 	int n;
-	
 	n = listen(mListenSockfd,10);
 	if (n == -1) //SOCKET_ERROR)
 	{
-		int tmp = errno;
-	  cout << " listen socket error!  errno " << errno <<  "  " << strerror(tmp) << "\n";
-		return;
-	}
-	
-	cout << "Accepting work socket...\n";
-	mWorkSockfd = accept(mListenSockfd,NULL,NULL);
-	
-	if (mWorkSockfd == -1) //INVALID_SOCKET)
-	{
-	  cout << "waiting... worksock " << mWorkSockfd  << "\n";
-		return;
+	  if (mDebugToConsole)
+	    cout << "ERROR in connectListenSocket!  errno " << errno <<  "  " << strerror(errno) << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"ERROR in connectListenSocket. Error: %d  %s\n\n",errno,strerror(errno));
 	} else {
-	  cout << "\nlisten accept succeeded mPacketSize: " << mPacketSize << "\n";
-	  
-		mReturnBuffer = new char[mPacketSize];
-		memset((void *)(mReturnBuffer),0,mPacketSize);	
-	  
-	  	mSendBuffer = new char[mPacketSize];
-		memset((void *)(mSendBuffer),0,mPacketSize);
-	  
-		mStringBuffer = new char[mPacketSize];
-		memset((void *)(mStringBuffer),0,mPacketSize);	
-
+	  if (mDebugToConsole)
+	    cout << "SUCCESS in connectListenSocket\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"SUCCESS in connectListenSocket \n");
+	  allocateBuffers();
+	  mServerStage = ServerSocketListening;
 	}
 }
 
-void dataSource::listenForPacket()
+void dataSource::listenForConnection()
 {
 	mPacketCount = 0;
-	if (mWorkSockfd == -1)
 	  mWorkSockfd = accept(mListenSockfd,NULL,NULL);
-
-	if (mWorkSockfd == -1) {
-	  //cout << ",\n";
-		return;
+	if (mWorkSockfd == -1)
+	{
+	  if (mDebugToConsole && (errno != 11))//11 = resource unavailable, ie waiting for connection.
+	    cout << "ERROR in listenForConnection. Error " << errno << "   " << strerror(errno) << "\n";
+	  if (mDebugToFile && (errno != 11))
+	    fprintf(mDebugLog,"ERROR in listenForConnection. Error: %d  %s\n\n",errno,strerror(errno));
+	} else {
+	  if (mDebugToConsole)
+	    cout << "SUCCESS in listenForConnection.  workSock: " << mWorkSockfd  << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"SUCCESS in listenForConnection. workSock: %d \n\n",mWorkSockfd);
+	  mServerStage = ServerSocketAccepted;
 	}
-	if (!mReturnBuffer) {	    
-	  mReturnBuffer = new char[mPacketSize];
-	  memset((void *)(mReturnBuffer),0,mPacketSize);
-	}
-	if (!mSendBuffer) {
-	  mSendBuffer = new char[mPacketSize];
-	  memset((void *)(mSendBuffer),0,mPacketSize);
-	}
-	if (!mStringBuffer) { 
-	  mStringBuffer = new char[mPacketSize];
-	  memset((void *)(mStringBuffer),0,mPacketSize);
 	}
 	
-	//cout << "Calling recv, workSock " << mWorkSockfd << "\n";
+void dataSource::receivePacket()
+{
 	int n = recv(mWorkSockfd,mReturnBuffer,mPacketSize,0);
-	//int n = read(mWorkSockfd,mReturnBuffer,mPacketSize);
-	
-	//cout << " receiving packet? n=" << n << "\n";
 	if (n<0) {
-	  cout << "ERROR : " << errno  << "  " << strerror(errno)  << "\n";
-		return;
+	  if (mDebugToConsole)
+	    cout << "ERROR in receivePacket.  Error: " << errno  << "  " << strerror(errno)  << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"ERROR in receivePacket. Error: %d  %s\n\n",errno,strerror(errno));
+	} else {
+	  if (mDebugToConsole)
+	    cout << "SUCCESS in receivePacket. Size = : " << n << "\n";
+	  if (mDebugToFile)
+	    fprintf(mDebugLog,"SUCCESS in receivePacket. Size: %d \n\n",n);
+	  mServerStage = PacketReceived;
 	}
-
-	//cout << " reading packet! ";
-	readPacket();
 }
 
 void dataSource::readPacket()
 {
 	short opcode,controlCount;//,packetCount;
-
+	mDebugLog = fopen("/home/pi/photoPi/log.txt","a");	
 	controlCount = readShort();
 	for (short i=0;i<controlCount;i++)
 	{		
 		opcode = readShort();
 
+		if (mDebugToConsole)
 		cout << "Reading packet, opcode = " << opcode << "\n";
-		if (opcode==1) {   ////  keep contact, but no request /////////////////////////
-			int tick = readInt();				
-		  if (mServer) cout << "dataSource clientTick = " << tick
-				    << ", my tick " << mCurrentTick << "\n";		
-		}
-		else if (opcode == 15)
+		if (mDebugToFile)
+		  fprintf(mDebugLog,"Reading packet, opcode = %d \n\n",opcode);
+		if (opcode == OPCODE_BASE)
 		{
-		  //int tick = readInt();
-		   char imgName[512],command[512];
-		   readString();
-		   if (mServer && strlen(mStringBuffer)>0 )
-		   {
-		     sprintf(command,"%s %s","raspistill --output ",mStringBuffer);		   
-		     system(command);
-		     cout  << "Executing command: [" << command << "]\n";
-		     mWorkSockfd = -1;
-		     //mFinished = true;//For now, bail after one photo.
+		  handleBaseRequest();		        		
 		   }
-		}
-
+		else if (opcode == OPCODE_PHOTO)
+		{
+		  handlePhotoRequest();
 		
+		}		
 		// else if (opcode==22) { // send us some number of packets after this one
 		//	packetCount = readShort();
 		//	if ((packetCount>0)&&(packetCount<=mMaxPackets))
 		//		mPacketCount = packetCount;
 		//}
 	}
-	
 	clearReturnPacket();
+	mServerStage = PacketRead;
 }
 
+void dataSource::allocateBuffers()
+{
+  if (!mReturnBuffer) {
+    mReturnBuffer = new char[mPacketSize];
+    memset((void *)(mReturnBuffer),0,mPacketSize);
+  }
+  if (!mSendBuffer) {
+    mSendBuffer = new char[mPacketSize];
+    memset((void *)(mSendBuffer),0,mPacketSize);
+  }
+  if (!mStringBuffer) { 
+    mStringBuffer = new char[mPacketSize];
+    memset((void *)(mStringBuffer),0,mPacketSize);
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
 void dataSource::connectSendSocket()
@@ -334,36 +377,10 @@ void dataSource::clearReturnPacket()
 
 	mReturnByteCounter = 0;	
 }
+
+
 /////////////////////////////////////////////////////////////////////////////////
 
-void dataSource::trySockets()
-{
-  if (mServer)
-    {
-      cout << " server ... " ;
-      if (mListenSockfd == 0) { //INVALID_SOCKET) {
-	cout << " openListenSocket ... \n\n" ;
-	    openListenSocket();
-      } else if (mWorkSockfd ==  0) { //INVALID_SOCKET) {
-	cout << " connectListenSocket ...  \n\n" ;
-	connectListenSocket();
-      } else {
-	cout << " ListenForPacket ...  \n\n" ;
-	listenForPacket();
-	mConnectionEstablished = true;
-      }
-    } else {
-      cout << " client ... " ;
-    if (mWorkSockfd ==  0) { //INVALID_SOCKET) {
-      cout << " connectSendSocket()... \n\n";      
-      connectSendSocket();
-    } else {
-      cout << " sendPacket()... \n\n";   
-      sendPacket();
-      mConnectionEstablished = true;
-    }
-  }
-}
 
 void dataSource::disconnectSockets()
 {
@@ -475,8 +492,8 @@ void dataSource::clearString()
 
 void dataSource::addBaseRequest()
 {	
-	short opcode = 1;//base request
-	mSendControls++;//Increment this every time you add a control.
+  short opcode = OPCODE_BASE;
+  mSendControls++;//(Increment this every time you add a control.)
 	writeShort(opcode);
 	writeInt(mCurrentTick);
 	//For a baseRequest, do nothing but send a tick value to make sure there's a connection.
@@ -485,20 +502,34 @@ void dataSource::addBaseRequest()
 void dataSource::handleBaseRequest()
 {	
 	int tick = readInt();				
-	if (mServer) cout << "dataSource clientTick = " << tick << ", my tick " << mCurrentTick;
-	else cout << "dataSource serverTick = " << tick << ", my tick " << mCurrentTick;
+  if (mDebugToConsole)
+    cout << "dataSource clientTick = " << tick << ", my tick " << mCurrentTick;
+  if (mDebugToFile)
+    fprintf(mDebugLog,"dataSource clientTick %d, my tick %d\n\n",tick,mCurrentTick);
 }
 
-void dataSource::addPhotoRequest(const char *imgName)
+void dataSource::addPhotoRequest(const char *cmdArgs)
 {
-	short opcode = 15;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
-	mSendControls++;//Increment this every time you add a control.
+  short opcode = OPCODE_PHOTO;
+  mSendControls++;//(Increment this every time you add a control.)
 	writeShort(opcode);
-	writeString(imgName);//Doesn't even matter what I send here, I am just firing off the command - but adding arguments
-	//could provide further direction re: file name and settings.
+  writeString(cmdArgs);
 }
 
 void dataSource::handlePhotoRequest()
 {
-	//Empty on this side, fires off on pi side.
+  char imgName[512],command[512];
+  readString();
+  if (strlen(mStringBuffer)>0 )
+    {
+      sprintf(command,"%s %s","raspistill ",mStringBuffer);		   
+      system(command);
+      if (mDebugToConsole)
+	cout  << "Executing command: [" << command << "]\n";
+      if (mDebugToFile)
+	  fprintf(mDebugLog,"Executing command: %s \n\n",command);
+      
+      mWorkSockfd = -1;
 }
+}
+
