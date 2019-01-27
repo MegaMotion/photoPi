@@ -27,20 +27,32 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define OPCODE_BASE		1
-
-using namespace std;
+enum serverConnectStage {
+  NoServerSocket,
+  ServerSocketCreated,
+  ServerSocketBound,
+  ServerSocketListening,
+  ServerSocketAccepted,
+  PacketReceived,
+  PacketRead
+};
+  
+enum clientConnectStage {
+  NoClientSocket,
+  ClientSocketCreated,
+  ClientSocketConnected,
+  PacketSent  
+};
 
 /// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
 class dataSource 
 {
    public:
-	   char mSourceIP[36];
+	   char mSourceIP[128];
 
-	   string mStrFilename;
-	   string mStrOptions;
-	   string mStrEncoding;
-
+	   std::string mStrFilename;
+	   std::string mStrOptions;
+	   std::string mStrEncoding;
 
 	   unsigned int mPort;
 
@@ -48,10 +60,13 @@ class dataSource
 	   unsigned int mLastSendTick;//Last time we sent a packet.
 	   unsigned int mLastSendTimeMS;//Last time we sent a packet.
 	   unsigned int mTickInterval;
-	   unsigned int mStartDelay;
+	   unsigned int mStartDelayMS;
 	   unsigned int mPacketCount;
 	   unsigned int mMaxPackets;
 	   unsigned int mPacketSize;
+
+	   serverConnectStage mServerStage;
+	   clientConnectStage mClientStage;
 
 	   bool mReadyForRequests;//flag to user class (eg terrainPager) that we can start adding requests.
 
@@ -67,8 +82,9 @@ class dataSource
 	   bool mServer;
 	   bool mListening;
 	   bool mAlternating;
-	   bool mConnectionEstablished;
-	   bool mFinished;
+
+	   bool mDebugToConsole;
+	   bool mDebugToFile;
 
 	   char *mReturnBuffer;
 	   char *mSendBuffer;
@@ -78,29 +94,33 @@ class dataSource
 	   short mReturnByteCounter;
 	   short mSendByteCounter;
 
+	   FILE *mDebugLog;
+
 	   dataSource(bool listening, int port, char *IP);
 	   ~dataSource();
 
 	   void tick();
 	   
-	   void openListenSocket();
+	   void createListenSocket();
+	   void bindListenSocket();
 	   void connectListenSocket();
-	   void listenForPacket();
+	   void listenForConnection();
+	   void receivePacket();
 	   void readPacket();
 	   void clearReturnPacket();
+	   void allocateBuffers();
 
 	   void connectSendSocket();
 	   void sendPacket();
 	   void clearSendPacket();
 	   
-	   void trySockets();
 	   void disconnectSockets();	  
 
 	   void writeShort(short);
 	   void writeInt(int);
 	   void writeFloat(float);
 	   void writeDouble(double);
-	   void writeString(const char *content);
+	   void writeString(const char *);
 	   //void writePointer(void *);//Someday? Using boost?
 
 	   short readShort();

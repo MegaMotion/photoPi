@@ -13,47 +13,44 @@ using namespace std;
 //using namespace std::chrono;
 
 int main(int argc, char* argv[])
-{
-  //time_t timer;
-  //int startTime = time(&timer);
-  //int lastTime = time(&timer);
-  
-  char IP_file[36];//(Note: only allowing for v4 addresses here)
-  char outputName[256];
+{  
+  char IP[128];
   int server = 0;
   int port = 9985;
-  int maxLoops = 1000;
-  int loop = 0;
-  int sleep_MS = 10;
+  int sleepMS = 10;
+  int maxTick = 500;//for testing, safety valve so we don't get stuck in endless loops.
 
-  if (argc == 2)
+  //Process command line arguments.
+  if (argc > 1)
   {
-    //server = atoi(argv[1]);
-    //port = atoi(argv[2]);
 #ifdef windows_OS
-    strcpy_s(IP_file,argv[1]);
+    strcpy_s(IP,argv[1]);
 #else
-	strcpy(IP, argv[3]);
+	strcpy(IP, argv[1]);
 #endif
-	//maxLoops = atoi(argv[4]);
   }
   
-  cout << "\n\n--- Data Source Socket Library Test Program ---\n  arg count  " << argc  << "  server " << server << 
-	  " port " << port << " maxLoops " << maxLoops << " IP " << IP_file << " \n\n";
+  if (argc > 2)
+    port = atoi(argv[2]);
+
+  //if (argc > 3) ...
+
   
-  dataSource *dataSrc = new dataSource(server,port, IP_file);
-  while (!dataSrc->mFinished)// (loop < maxLoops)//(!dataSrc->mFinished)// //FIX FIX FIX, get time.h included
+  cout << "\n\n--- Data Source Socket Library Test Program ---\n  arg count  " << argc  << "  server " << server << 
+	  " port " << port << " \n\n";
+  
+  dataSource *dataSrc = new dataSource(server,port,IP);
+ while ( dataSrc->mCurrentTick < maxTick ) //!(dataSrc->mFinished) )
   {
+	dataSrc->tick();
 #ifdef windows_OS
-	  Sleep(sleep_MS);
+    Sleep(sleepMS);
 #else
 	  timespec time1, time2;
 	  time1.tv_sec = 0;
-	  time1.tv_nsec = sleep_MS * 1000000L;
-	  nanosleep(&time1, &time2);
+    time1.tv_nsec = sleepMS * 1000000L;//Ten times one million nanoseconds, or 10 milliseconds.
+    nanosleep(&time1, &time2);//Time one is requested, Time two is for leftovers if interrupted.
 #endif
-	  dataSrc->tick();
-	  //cout << "ticking!!  loop = " << loop << "\n";
   }
   
   delete dataSrc; 
