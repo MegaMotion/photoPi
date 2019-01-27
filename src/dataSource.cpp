@@ -2,23 +2,19 @@
 // Copyright (c) 2015 Chris Calef
 //-----------------------------------------------------------------------------
 
-#include "dataSource.h"
-//#include "tinyxml.h"
+#include "../include/dataSource.h"
 
-using namespace std;
 
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
 dataSource::dataSource(bool server,int port, char *IP)
 {
 	mPacketSize = 1024;
-	mSocketTimeout = 0;
 	mPort = port;//9984
 	mCurrentTick = 0;
 	mLastSendTick = 0;
 	mLastSendTimeMS = 0;
 	mTickInterval = 1;//45;
-	mTalkInterval = 20;
 	mStartDelay = 0;//50
 	mPacketCount = 0;
 	mMaxPackets = 20;
@@ -52,7 +48,114 @@ dataSource::dataSource(bool server,int port, char *IP)
 	}
 #endif
 
-	//printf("New data source object!!! Source IP: %s listening %d\n",mSourceIP,server);
+
+	string strLine;
+
+	string strOutput;
+	string strTime;
+	string strIso;
+	string strImageEffect;
+	string strColorEffect;
+	string strExposureMode;
+	string strAwbMode;
+	string strShutterSpeed;
+	string strFlickerAvoid;
+	string strDrc;
+	string strImgWidth;
+	string strImgHeight;
+	string strJpgQuality;
+
+	//string strOptions;
+
+	char line[72];
+	char label[36];
+	char value[36];
+
+	mStrOptions = "";
+
+	//First, open config text file, load values for raspistill.
+	FILE *fp = fopen("config.txt", "r");//TESING: overrode 
+	while (fgets(line, 72, fp))
+	{
+		line[strcspn(line, "\n")] = 0;//Strip off the carriage return.
+
+									  //Bail here if this is a comment or the line doesn't have an equals sign in it.
+		if ((line[0] == '#') || !(strstr(line, "=")))
+			continue;
+
+		//Convert it to std::string.
+		strLine = line;
+		cout << "LINE: " << line << "\n";
+		sprintf(label, strLine.substr(0, strLine.find('=')).c_str());
+		sprintf(value, strLine.substr(strLine.find('=') + 1).c_str());
+		if (strlen(value) == 0)
+			continue;
+
+
+		if (!strcmp(label, "OUTPUT"))
+		{
+			mStrFilename = value;
+			mStrFilename.erase(mStrFilename.find("."));// Strip file extension, I hope?
+			strOutput = " -o "; strOutput.append(value); mStrOptions.append(strOutput);
+		}
+		else if (!strcmp(label, "TIME"))
+		{
+			strTime = " -t "; strTime.append(value); mStrOptions.append(strTime);
+		}
+		else if (!strcmp(label, "ISO"))
+		{
+			strIso = " -ISO "; strIso.append(value); mStrOptions.append(strIso);
+		}
+		else if (!strcmp(label, "IMAGE_EFFECT"))
+		{
+			strImageEffect = " -ifx "; strImageEffect.append(value); mStrOptions.append(strImageEffect);
+		}
+		else if (!strcmp(label, "COLOR_EFECT"))
+		{
+			strColorEffect = " -cfx "; strColorEffect.append(value); mStrOptions.append(strColorEffect);
+		}
+		else if (!strcmp(label, "EXPOSURE_MODE"))
+		{
+			strExposureMode = " -ex "; strExposureMode.append(value); mStrOptions.append(strExposureMode);
+		}
+		else if (!strcmp(label, "AWB_MODE"))
+		{
+			strAwbMode = " -awb "; strAwbMode.append(value); mStrOptions.append(strAwbMode);
+		}
+		else if (!strcmp(label, "SHUTTER_SPEED"))
+		{
+			strShutterSpeed = " -ss "; strShutterSpeed.append(value); mStrOptions.append(strShutterSpeed);
+		}
+		else if (!strcmp(label, "FLICKER_AVOID"))
+		{
+			strFlickerAvoid = " -fli "; strFlickerAvoid.append(value); mStrOptions.append(strFlickerAvoid);
+		}
+		else if (!strcmp(label, "DRC"))
+		{
+			strDrc = " -drc "; strDrc.append(value); mStrOptions.append(strDrc);
+		}
+		else if (!strcmp(label, "IMAGE_WIDTH"))
+		{
+			strImgWidth = " -w "; strImgWidth.append(value); mStrOptions.append(strImgWidth);
+		}
+		else if (!strcmp(label, "IMAGE_HEIGHT"))
+		{
+			strImgHeight = " -h "; strImgHeight.append(value); mStrOptions.append(strImgHeight);
+		}
+		else if (!strcmp(label, "JPG_QUALITY"))
+		{
+			strJpgQuality = " -q "; strJpgQuality.append(value); mStrOptions.append(strJpgQuality);
+		}
+		else if (!strcmp(label, "ENCODING"))
+		{
+			mStrEncoding = " -e "; mStrEncoding.append(value); mStrOptions.append(mStrEncoding);
+			mStrFilename += "."; 
+			mStrFilename += value;
+		}
+	}
+	fclose(fp);
+
+	cout << "OPTIONS: " << mStrOptions.c_str() << "\n";
 }
 
 dataSource::~dataSource()
@@ -71,11 +174,9 @@ void dataSource::tick()
 	{ 
 		if (mConnectionEstablished == false)
 		{
-			//cout << " trying sockets!! ";
 			trySockets();
 		} else {
 			if (mListening) {
-			  //cout << " listening for packet! " ;
 				listenForPacket();
 				if (mAlternating) {
 					mListening = false;
@@ -191,12 +292,10 @@ void dataSource::connectListenSocket()
 		return;
 	}
 	
-	//cout << "Accepting work socket...\n";
 	mWorkSockfd = accept(mListenSockfd,NULL,NULL);
 	
 	if (mWorkSockfd == -1) //INVALID_SOCKET)
 	{
-	  cout << "waiting... worksock " << mWorkSockfd  << "\n";
 		return;
 	} else {
 	  cout << "\nlisten accept succeeded mPacketSize: " << mPacketSize << "\n";
@@ -282,13 +381,12 @@ void dataSource::readPacket()
 	clearReturnPacket();
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////
 
 void dataSource::connectSendSocket()
 {
 	struct sockaddr_in source_addr;
-	FILE *fp;
+	FILE *fp,*getPicsFp;
 
 	mReturnBuffer = new char[mPacketSize];	
 	mSendBuffer = new char[mPacketSize];		
@@ -299,7 +397,6 @@ void dataSource::connectSendSocket()
 
 	mReadyForRequests = true;
 
-
 	//Next, we are going to open up our text file, cameraIPs.txt, and run through a list of IPs instead of just one.
 	fp = fopen(mSourceIP, "r");//TESING: overrode 
 	if (fp == NULL)
@@ -309,32 +406,23 @@ void dataSource::connectSendSocket()
 	}
 	else cout << "opened IPs file: " << mSourceIP << "\n";
 
+	getPicsFp = fopen("getPics.sh", "w");
+
 	char IP[16],IP_stripped[16];
-	string filename,IPstring;
+	string filename,getPicString,getPicFile="";
 	
 	fgets(IP, 16, fp);
 	IP[strcspn(IP, "\n")] = 0;//Strip off the carriage return.
-	IPstring = IP;
-	filename = mOutputName;
-	filename.append(".");
-	filename.append(IP);
-	filename.append(".png");
-	cout << "output filename: " << filename.c_str() << "\n";
 	while (strlen(IP) > 0)
 	{
-		//addBaseRequest();
-
 		//APPLICATION SPECIFIC MODIFICAITON:
 		addPhotoRequest();
-
-		//mFinished = true;//New plan, just kill the whole process after this request goes out.
 
 		mWorkSockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (mWorkSockfd < 0) {
 			cout << "ERROR opening send socket\n";
 			return;
 		}
-
 
 #ifdef windows_OS
 		ZeroMemory((char *)&source_addr, sizeof(source_addr));
@@ -346,6 +434,7 @@ void dataSource::connectSendSocket()
 		//source_addr.sin_addr.s_addr = inet_addr( mSourceIP );
 		source_addr.sin_addr.s_addr = inet_addr(IP);
 		source_addr.sin_port = htons(mPort);
+	
 		int connectCode = connect(mWorkSockfd, (struct sockaddr *) &source_addr, sizeof(source_addr));
 		if (connectCode < 0)
 		{
@@ -357,19 +446,33 @@ void dataSource::connectSendSocket()
 			sendPacket();
 		}
 
+		//write a line for getPics.sh
+		getPicString = "scp pi@";
+		getPicString.append(IP); //getPicString.erase(getPicString.find("\n"));//remove newline if present
+		getPicString += ":~/photoPi/img/";
+		getPicString.append(mStrFilename.c_str());
+		getPicString += " ./img/";
+		getPicString.append(IP); //getPicString.erase(getPicString.find("\n"));//remove newline if present
+		getPicString += ".";
+		getPicString.append(mStrFilename.c_str());
+		getPicString += "\n";
+		cout << getPicString.c_str();
+		fprintf(getPicsFp, "%s", getPicString.c_str());
+
 		//Clear and load the next IP from the file.
 		strcpy(IP, "");//Unnecessary?
 		fgets(IP, 16, fp);
+		IP[strcspn(IP, "\n")] = 0;//Strip off the carriage return.
 	}
 
 
 	fclose(fp);
+	fclose(getPicsFp);
 	
 }
 
 void dataSource::sendPacket()
 {
-  
   memset((void *)(mStringBuffer),0,mPacketSize);	
   memcpy((void*)mStringBuffer,reinterpret_cast<void*>(&mSendControls),sizeof(short));
   memcpy((void*)&mStringBuffer[sizeof(short)],(void*)mSendBuffer,mPacketSize-sizeof(short));
@@ -510,7 +613,6 @@ void dataSource::clearString()
 
 void dataSource::addBaseRequest()
 {	
-	cout << "Adding base request! tick " << mCurrentTick << "\n";
 	short opcode = 1;//base request
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
@@ -529,115 +631,10 @@ void dataSource::addPhotoRequest()
 {
 	short configs = 0;
 
-	string strLine;
-
-	string strOutput;
-	string strTime;
-	string strIso;
-	string strImageEffect;
-	string strColorEffect;
-	string strExposureMode;
-	string strAwbMode;
-	string strShutterSpeed;
-	string strFlickerAvoid;
-	string strDrc;
-	string strImgWidth;
-	string strImgHeight;
-	string strJpgQuality;
-	string strEncoding;
-
-	string strOptions;
-
-	char line[72];
-	char label[36];
-	char value[36];
-
-	strOptions = "";
-
-	//First, open config text file, load values for raspistill.
-	FILE *fp = fopen("config.txt", "r");//TESING: overrode 
-	while (fgets(line, 72, fp))
-	{
-		line[strcspn(line, "\n")] = 0;//Strip off the carriage return.
-
-									  //Bail here if this is a comment or the line doesn't have an equals sign in it.
-		if ((line[0] == '#') || !(strstr(line, "=")))
-			continue;
-
-		//Convert it to std::string.
-		strLine = line;
-		cout << "LINE: " << line << "\n";
-		sprintf(label, strLine.substr(0, strLine.find('=')).c_str());
-		sprintf(value, strLine.substr(strLine.find('=') + 1).c_str());
-		if (strlen(value) == 0)
-			continue;
-
-		
-		if (!strcmp(label, "OUTPUT"))
-		{
-			strOutput = " -o "; strOutput.append(value); strOptions.append(strOutput);
-		}
-		else if (!strcmp(label, "TIME"))
-		{
-			strTime = " -t "; strTime.append(value); strOptions.append(strTime);
-		}
-		else if (!strcmp(label, "ISO"))
-		{
-			strIso = " -ISO "; strIso.append(value); strOptions.append(strIso);
-		}
-		else if (!strcmp(label, "IMAGE_EFFECT"))
-		{
-			strImageEffect = " -ifx "; strImageEffect.append(value); strOptions.append(strImageEffect);
-		}
-		else if (!strcmp(label, "COLOR_EFECT"))
-		{
-			strColorEffect = " -cfx "; strColorEffect.append(value); strOptions.append(strColorEffect);
-		}
-		else if (!strcmp(label, "EXPOSURE_MODE"))
-		{
-			strExposureMode = " -ex "; strExposureMode.append(value); strOptions.append(strExposureMode);
-		}
-		else if (!strcmp(label, "AWB_MODE"))
-		{
-			strAwbMode = " -awb "; strAwbMode.append(value); strOptions.append(strAwbMode);
-		}
-		else if (!strcmp(label, "SHUTTER_SPEED"))
-		{
-			strShutterSpeed = " -ss "; strShutterSpeed.append(value); strOptions.append(strShutterSpeed);
-		}
-		else if (!strcmp(label, "FLICKER_AVOID"))
-		{
-			strFlickerAvoid = " -fli "; strFlickerAvoid.append(value); strOptions.append(strFlickerAvoid);
-		}
-		else if (!strcmp(label, "DRC"))
-		{
-			strDrc = " -drc "; strDrc.append(value); strOptions.append(strDrc);
-		}
-		else if (!strcmp(label, "IMAGE_WIDTH"))
-		{
-			strImgWidth = " -w "; strImgWidth.append(value); strOptions.append(strImgWidth);
-		}
-		else if (!strcmp(label, "IMAGE_HEIGHT"))
-		{
-			strImgHeight = " -h "; strImgHeight.append(value); strOptions.append(strImgHeight);
-		}
-		else if (!strcmp(label, "JPG_QUALITY"))
-		{
-			strJpgQuality = " -q "; strJpgQuality.append(value); strOptions.append(strJpgQuality);
-		}
-		else if (!strcmp(label, "ENCODING"))
-		{
-			strEncoding = " -e "; strEncoding.append(value); strOptions.append(strEncoding);
-		}
-	}
-	fclose(fp);
-
-	cout << "OPTIONS: " << strOptions.c_str() << "\n";
-
 	short opcode = 51;//photo request, arbitrary but putting it above the ones I've already used for terrain server, etc.
 	mSendControls++;//Increment this every time you add a control.
 	writeShort(opcode);
-	writeString(strOptions.c_str());
+	writeString(mStrOptions.c_str());
 }
 
 void dataSource::handlePhotoRequest()

@@ -29,19 +29,25 @@
 
 #define OPCODE_BASE		1
 
+using namespace std;
+
 /// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
 class dataSource 
 {
    public:
 	   char mSourceIP[36];
-	   char mOutputName[256];
+
+	   string mStrFilename;
+	   string mStrOptions;
+	   string mStrEncoding;
+
+
 	   unsigned int mPort;
 
 	   unsigned int mCurrentTick;
 	   unsigned int mLastSendTick;//Last time we sent a packet.
 	   unsigned int mLastSendTimeMS;//Last time we sent a packet.
 	   unsigned int mTickInterval;
-	   unsigned int mTalkInterval;
 	   unsigned int mStartDelay;
 	   unsigned int mPacketCount;
 	   unsigned int mMaxPackets;
@@ -57,10 +63,6 @@ class dataSource
 	   int mListenSockfd;
 	   int mWorkSockfd;
 #endif
-	   fd_set mMasterFDS;
-	   fd_set mReadFDS;
-
-	   int mSocketTimeout;
 	   
 	   bool mServer;
 	   bool mListening;
