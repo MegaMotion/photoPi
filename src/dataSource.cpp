@@ -7,9 +7,6 @@
 using namespace std;
 
 
-#define OPCODE_BASE    1
-#define OPCODE_PHOTO  51
-
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
 dataSource::dataSource(bool server,int port, char *IP)
@@ -243,6 +240,10 @@ void dataSource::createListenSocket()
 	  mServerStage = serverConnectStage::ServerSocketCreated;
 	}
 	
+	bool bOptVal = true;
+	if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) 
+	  cout << "FAILED to set socket option ReuseAddress\n";	
+	
 
 #ifdef windows_OS
 	u_long iMode=1;
@@ -252,10 +253,6 @@ void dataSource::createListenSocket()
 	flags = fcntl(mListenSockfd,F_GETFL,0);
 	if (flags != -1)
 	  fcntl(mListenSockfd, F_SETFL, flags | O_NONBLOCK);
-	
-	bool bOptVal = true;
-	if (setsockopt(mListenSockfd,SOL_SOCKET,SO_REUSEADDR,(char *) &bOptVal,sizeof(bool)) == -1) 
-	  cout << "FAILED to set socket option ReuseAddress\n";			
 #endif
 }
 
@@ -350,7 +347,7 @@ void dataSource::receivePacket()
 void dataSource::readPacket()
 {
 	short opcode,controlCount;//,packetCount;
-	mDebugLog = fopen("/home/pi/photoPi/log.txt","a");	
+
 	controlCount = readShort();
 	for (short i=0;i<controlCount;i++)
 	{		
@@ -437,6 +434,9 @@ void dataSource::connectSendSocket()
 			cout << "ERROR opening send socket\n";
 			return;
 		}
+
+	u_long iMode=1;
+	ioctlsocket(mWorkSockfd,FIONBIO,&iMode);//Make it a non-blocking socket.
 
 #ifdef windows_OS
 		ZeroMemory((char *)&source_addr, sizeof(source_addr));

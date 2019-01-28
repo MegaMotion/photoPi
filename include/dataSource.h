@@ -27,6 +27,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#define OPCODE_BASE    1
+#define OPCODE_PHOTO  51
+
 enum serverConnectStage {
   NoServerSocket,
   ServerSocketCreated,
