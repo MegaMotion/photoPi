@@ -6,10 +6,6 @@
 
 using namespace std;
 
-
-#define OPCODE_BASE    1
-#define OPCODE_PHOTO  51
-
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
 dataSource::dataSource(bool server,int port, char *IP)
@@ -312,7 +308,6 @@ void dataSource::connectSendSocket()
 	mReadyForRequests = true;
 
 	addBaseRequest();
-	addPhotoRequest("test01.jpg");
 
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM,IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
@@ -347,7 +342,6 @@ void dataSource::connectSendSocket()
 
 void dataSource::sendPacket()
 {
-  
   memset((void *)(mStringBuffer),0,mPacketSize);	
   memcpy((void*)mStringBuffer,reinterpret_cast<void*>(&mSendControls),sizeof(short));
   memcpy((void*)&mStringBuffer[sizeof(short)],(void*)mSendBuffer,mPacketSize-sizeof(short));
@@ -377,10 +371,7 @@ void dataSource::clearReturnPacket()
 
 	mReturnByteCounter = 0;	
 }
-
-
 /////////////////////////////////////////////////////////////////////////////////
-
 
 void dataSource::disconnectSockets()
 {
@@ -474,7 +465,6 @@ char *dataSource::readString()
 	int length = readInt();
 	strncpy(mStringBuffer,&mReturnBuffer[mReturnByteCounter],length);
 	mReturnByteCounter += length;
-	//cout << "READING STRING: " << mStringBuffer << "\n";
 	return mStringBuffer;
 }
 
@@ -492,8 +482,8 @@ void dataSource::clearString()
 
 void dataSource::addBaseRequest()
 {	
-  short opcode = OPCODE_BASE;
-  mSendControls++;//(Increment this every time you add a control.)
+  	short opcode = OPCODE_BASE;
+  	mSendControls++;//(Increment this every time you add a control.)
 	writeShort(opcode);
 	writeInt(mCurrentTick);
 	//For a baseRequest, do nothing but send a tick value to make sure there's a connection.
@@ -510,10 +500,10 @@ void dataSource::handleBaseRequest()
 
 void dataSource::addPhotoRequest(const char *cmdArgs)
 {
-  short opcode = OPCODE_PHOTO;
-  mSendControls++;//(Increment this every time you add a control.)
+  	short opcode = OPCODE_PHOTO;
+  	mSendControls++;//(Increment this every time you add a control.)
 	writeShort(opcode);
-  writeString(cmdArgs);
+  	writeString(cmdArgs);
 }
 
 void dataSource::handlePhotoRequest()

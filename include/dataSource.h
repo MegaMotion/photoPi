@@ -27,6 +27,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#define OPCODE_BASE    1
+#define OPCODE_PHOTO  51
+
 enum serverConnectStage {
   NoServerSocket,
   ServerSocketCreated,
@@ -44,12 +47,16 @@ enum clientConnectStage {
   PacketSent  
 };
 
-
 /// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
 class dataSource 
 {
    public:
-	   char mSourceIP[16];//FIX, size up for v6
+	   char mSourceIP[128];
+
+	   std::string mStrFilename;
+	   std::string mStrOptions;
+	   std::string mStrEncoding;
+
 	   unsigned int mPort;
 
 	   unsigned int mCurrentTick;
@@ -74,8 +81,6 @@ class dataSource
 	   int mListenSockfd;
 	   int mWorkSockfd;
 #endif
-	   fd_set mMasterFDS;
-	   fd_set mReadFDS;
 
 	   bool mServer;
 	   bool mListening;

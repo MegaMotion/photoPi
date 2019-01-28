@@ -14,7 +14,7 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-  char IP[16];//(Note: only allowing for v4 addresses here)
+  char IP[128];
   int server = 1;
   int port = 9985;
   int sleepMS = 10;
@@ -40,12 +40,9 @@ int main(int argc, char* argv[])
 	  " port " << port <<  " IP " << IP << " \n\n";
   
   dataSource *dataSrc = new dataSource(server,port,IP);
-  long int c = 0;
-
-  //FIX, get time.h or chrono in here, so we don't have to run a while loop at top speed while we're waiting.
   while ( dataSrc->mCurrentTick < maxTick ) //!(dataSrc->mFinished) )
   {
-		  dataSrc->tick();
+	dataSrc->tick();
 #ifdef windows_OS
     Sleep(sleepMS);
 #else		  
