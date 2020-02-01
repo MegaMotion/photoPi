@@ -9,6 +9,13 @@
 //#define windows_OS 
 ///////////////////////////////////////////////////////////
 
+#define windows_OS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+
+#define OPCODE_BASE    1
+#define OPCODE_PHOTO  51
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,119 +34,118 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define OPCODE_BASE    1
-#define OPCODE_PHOTO  51
+#pragma comment(lib, "Ws2_32.lib")
 
 enum serverConnectStage {
-  NoServerSocket,
-  ServerSocketCreated,
-  ServerSocketBound,
-  ServerSocketListening,
-  ServerSocketAccepted,
-  PacketReceived,
-  PacketRead
+	NoServerSocket,
+	ServerSocketCreated,
+	ServerSocketBound,
+	ServerSocketListening,
+	ServerSocketAccepted,
+	PacketReceived,
+	PacketRead
 };
-  
+
 enum clientConnectStage {
-  NoClientSocket,
-  ClientSocketCreated,
-  ClientSocketConnected,
-  PacketSent  
+	NoClientSocket,
+	ClientSocketCreated,
+	ClientSocketConnected,
+	PacketSent
 };
 
 /// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
-class dataSource 
+class dataSource
 {
-   public:
-	   char mSourceIP[128];
+public:
+	char mSourceIP[128];
 
-	   std::string mStrFilename;
-	   std::string mStrOptions;
-	   std::string mStrEncoding;
+	std::string mStrFilename;
+	std::string mStrOptions;
+	std::string mStrEncoding;
 
-	   unsigned int mPort;
+	unsigned int mPort;
 
-	   unsigned int mCurrentTick;
-	   unsigned int mLastSendTick;//Last time we sent a packet.
-	   unsigned int mLastSendTimeMS;//Last time we sent a packet.
-	   unsigned int mTickInterval;
-	   unsigned int mStartDelayMS;
-	   unsigned int mPacketCount;
-	   unsigned int mMaxPackets;
-	   unsigned int mPacketSize;
+	unsigned int mCurrentTick;
+	unsigned int mLastSendTick;//Last time we sent a packet.
+	unsigned int mLastSendTimeMS;//Last time we sent a packet.
+	unsigned int mTickInterval;
+	unsigned int mStartDelayMS;
+	unsigned int mPacketCount;
+	unsigned int mMaxPackets;
+	unsigned int mPacketSize;
 
-	   serverConnectStage mServerStage;
-	   clientConnectStage mClientStage;
+	serverConnectStage mServerStage;
+	clientConnectStage mClientStage;
 
-	   bool mReadyForRequests;//flag to user class (eg terrainPager) that we can start adding requests.
+	bool mReadyForRequests;//flag to user class (eg terrainPager) that we can start adding requests.
 
 #ifdef windows_OS
-	   SOCKET mListenSockfd;
-	   SOCKET mWorkSockfd;
-	   WSADATA wsaData;
+	SOCKET mListenSockfd;
+	SOCKET mWorkSockfd;
+	WSADATA wsaData;
 #else
-	   int mListenSockfd;
-	   int mWorkSockfd;
+	int mListenSockfd;
+	int mWorkSockfd;
 #endif
 
-	   bool mServer;
-	   bool mListening;
-	   bool mAlternating;
+	bool mServer;
+	bool mListening;
+	bool mAlternating;
 
-	   bool mDebugToConsole;
-	   bool mDebugToFile;
+	bool mDebugToConsole;
+	bool mDebugToFile;
 
-	   char *mReturnBuffer;
-	   char *mSendBuffer;
-	   char *mStringBuffer;
+	char* mReturnBuffer;
+	char* mSendBuffer;
+	char* mStringBuffer;
 
-	   short mSendControls;
-	   short mReturnByteCounter;
-	   short mSendByteCounter;
+	short mSendControls;
+	short mReturnByteCounter;
+	short mSendByteCounter;
 
-	   FILE *mDebugLog;
+	FILE* mDebugLog;
 
-	   dataSource(bool listening, int port, char *IP);
-	   ~dataSource();
+	dataSource(bool listening, int port, char* IP);
+	~dataSource();
 
-	   void tick();
-	   
-	   void createListenSocket();
-	   void bindListenSocket();
-	   void connectListenSocket();
-	   void listenForConnection();
-	   void receivePacket();
-	   void readPacket();
-	   void clearReturnPacket();
-	   void allocateBuffers();
+	void tick();
 
-	   void connectSendSocket();
-	   void sendPacket();
-	   void clearSendPacket();
-	   
-	   void disconnectSockets();	  
+	void createListenSocket();
+	void bindListenSocket();
+	void connectListenSocket();
+	void listenForConnection();
+	void receivePacket();
+	void readPacket();
+	void clearReturnPacket();
+	void allocateBuffers();
 
-	   void writeShort(short);
-	   void writeInt(int);
-	   void writeFloat(float);
-	   void writeDouble(double);
-	   void writeString(const char *);
-	   //void writePointer(void *);//Someday? Using boost?
+	void connectSendSocket();
+	void sendPacket();
+	void clearSendPacket();
 
-	   short readShort();
-	   int readInt();
-	   float readFloat();
-	   double readDouble();
-	   char *readString();
-	   //void *readPointer();
-	   
-	   void clearString();
+	void disconnectSockets();
 
-	   void addBaseRequest();
-	   void handleBaseRequest();
+	void writeShort(short);
+	void writeInt(int);
+	void writeFloat(float);
+	void writeDouble(double);
+	void writeString(const char*);
+	//void writePointer(void *);//Someday? Using boost?
 
-	   void addPhotoRequest(const char *imgName);
-	   void handlePhotoRequest();
+	short readShort();
+	int readInt();
+	float readFloat();
+	double readDouble();
+	char* readString();
+	//void *readPointer();
+
+	void clearString();
+
+	void addBaseRequest();
+	void handleBaseRequest();
+
+	void addPhotoRequest(const char* imgName);
+	void handlePhotoRequest();
 };
 
 #endif // _DATASOURCE_H_
