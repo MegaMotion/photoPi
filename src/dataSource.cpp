@@ -1,10 +1,10 @@
 //-----------------------------------------------------------------------------
-// Copyright (c) 2015 Chris Calef
+// Copyright (c) 2020 Chris Calef
 //-----------------------------------------------------------------------------
 
 #include "../include/dataSource.h"
 
-using namespace std;
+//using namespace std;
 
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
@@ -49,7 +49,7 @@ dataSource::dataSource(bool server, int port, char* IP)
 
 #ifdef windows_OS
 	if (WSAStartup(MAKEWORD(1, 1), &wsaData) == SOCKET_ERROR) {
-		cout << "Error initialising WSA.\n";
+		std::cout << "Error initialising WSA.\n";
 	}
 #endif
 
@@ -75,6 +75,7 @@ dataSource::dataSource(bool server, int port, char* IP)
 dataSource::~dataSource()
 {
 	disconnectSockets();
+
 	if (mDebugToFile)
 		fclose(mDebugLog);
 }
@@ -84,12 +85,8 @@ dataSource::~dataSource()
 void dataSource::tick()
 {
 	if (mServer)
-		cout << "DataSource ticking: " << mCurrentTick << "  server stage: " << mServerStage << " \n";
-	else
-		cout << "DataSource ticking: " << mCurrentTick << "  client stage: " << mClientStage << " \n";
-
-	if (mServer)
 	{
+		//	std::cout << "DataSource ticking: " << mCurrentTick << "  server stage: " << mServerStage << " \n";
 		switch (mServerStage)
 		{
 		case NoServerSocket:
@@ -111,6 +108,7 @@ void dataSource::tick()
 	}
 	else
 	{
+		//	std::cout << "DataSource ticking: " << mCurrentTick << "  client stage: " << mClientStage << " \n";
 		switch (mClientStage)
 		{
 		case NoClientSocket:
@@ -119,10 +117,9 @@ void dataSource::tick()
 		case ClientSocketCreated:
 			break;
 		case ClientSocketConnected:
-			sendPacket();
-			break;
-		case PacketSent:
 			addBaseRequest();
+			//addPhotoRequest("myPhoto167.jpg");
+			addTestRequest();
 			sendPacket();
 			break;
 		}
@@ -135,16 +132,17 @@ void dataSource::tick()
 void dataSource::createListenSocket()
 {
 	mListenSockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
 	if (mListenSockfd < 0)
 	{
 		if (mDebugToConsole)
-			cout << "ERROR in createListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
+			std::cout << "ERROR in createListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "ERROR in createListenSocket. Error: %d %s\n", errno, strerror(errno));
 	}
 	else {
 		if (mDebugToConsole)
-			cout << "SUCCESS in createListenSocket\n";
+			std::cout << "SUCCESS in createListenSocket\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "SUCCESS in createListenSocket\n");
 		mServerStage = serverConnectStage::ServerSocketCreated;
@@ -153,7 +151,7 @@ void dataSource::createListenSocket()
 
 #ifdef windows_OS
 	u_long iMode = 1;
-	//ioctlsocket(mListenSockfd,O_NONBLOCK,&iMode);//Make it a non-blocking socket.
+	ioctlsocket(mListenSockfd, FIONBIO, &iMode); //Make it a non-blocking socket.
 #else
 	int flags;
 	flags = fcntl(mListenSockfd, F_GETFL, 0);
@@ -162,7 +160,7 @@ void dataSource::createListenSocket()
 
 	bool bOptVal = true;
 	if (setsockopt(mListenSockfd, SOL_SOCKET, SO_REUSEADDR, (char*)&bOptVal, sizeof(bool)) == -1)
-		cout << "FAILED to set socket option ReuseAddress\n";
+		std::cout << "FAILED to set socket option ReuseAddress\n";
 #endif
 }
 
@@ -183,14 +181,14 @@ void dataSource::bindListenSocket()
 	if (bind(mListenSockfd, (struct sockaddr*) & source_addr, sizeof(source_addr)) < 0)
 	{
 		if (mDebugToConsole)
-			cout << "ERROR in bindListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
+			std::cout << "ERROR in bindListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "ERROR in bindListenSocket. Error: %d  %s\n\n", errno, strerror(errno));
 	}
 	else
 	{
 		if (mDebugToConsole)
-			cout << "SUCCESS in bindListenSocket " << mListenSockfd << "\n";
+			std::cout << "SUCCESS in bindListenSocket " << mListenSockfd << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "SUCCESS in bindListenSocket %d \n", mListenSockfd);
 		mServerStage = ServerSocketBound;
@@ -205,15 +203,16 @@ void dataSource::connectListenSocket()
 	if (n == -1) //SOCKET_ERROR)
 	{
 		if (mDebugToConsole)
-			cout << "ERROR in connectListenSocket!  errno " << errno << "  " << strerror(errno) << "\n";
+			std::cout << "ERROR in connectListenSocket!  errno " << errno << "  " << strerror(errno) << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "ERROR in connectListenSocket. Error: %d  %s\n\n", errno, strerror(errno));
 	}
 	else {
 		if (mDebugToConsole)
-			cout << "SUCCESS in connectListenSocket\n";
+			std::cout << "SUCCESS in connectListenSocket\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "SUCCESS in connectListenSocket \n");
+
 		allocateBuffers();
 		mServerStage = ServerSocketListening;
 	}
@@ -226,13 +225,13 @@ void dataSource::listenForConnection()
 	if (mWorkSockfd == -1)
 	{
 		if (mDebugToConsole && (errno != 11))//11 = resource unavailable, ie waiting for connection.
-			cout << "ERROR in listenForConnection. Error " << errno << "   " << strerror(errno) << "\n";
+			std::cout << "ERROR in listenForConnection. Error " << errno << "   " << strerror(errno) << "\n";
 		if (mDebugToFile && (errno != 11))
 			fprintf(mDebugLog, "ERROR in listenForConnection. Error: %d  %s\n\n", errno, strerror(errno));
 	}
 	else {
 		if (mDebugToConsole)
-			cout << "SUCCESS in listenForConnection.  workSock: " << mWorkSockfd << "\n";
+			std::cout << "SUCCESS in listenForConnection.  workSock: " << mWorkSockfd << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "SUCCESS in listenForConnection. workSock: %d \n\n", mWorkSockfd);
 		mServerStage = ServerSocketAccepted;
@@ -244,13 +243,13 @@ void dataSource::receivePacket()
 	int n = recv(mWorkSockfd, mReturnBuffer, mPacketSize, 0);
 	if (n < 0) {
 		if (mDebugToConsole)
-			cout << "ERROR in receivePacket.  Error: " << errno << "  " << strerror(errno) << "\n";
+			std::cout << "ERROR in receivePacket.  Error: " << errno << "  " << strerror(errno) << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "ERROR in receivePacket. Error: %d  %s\n\n", errno, strerror(errno));
 	}
 	else {
 		if (mDebugToConsole)
-			cout << "SUCCESS in receivePacket. Size = : " << n << "\n";
+			std::cout << "SUCCESS in receivePacket. Size = : " << n << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "SUCCESS in receivePacket. Size: %d \n\n", n);
 		readPacket();
@@ -261,30 +260,28 @@ void dataSource::receivePacket()
 void dataSource::readPacket()
 {
 	short opcode, controlCount;//,packetCount;
-	//mDebugLog = fopen("/home/pi/photoPi/log.txt", "a");
 	controlCount = readShort();
 	for (short i = 0; i < controlCount; i++)
 	{
 		opcode = readShort();
 
 		if (mDebugToConsole)
-			cout << "Reading packet, opcode = " << opcode << "\n";
+			std::cout << "Reading packet, opcode = " << opcode << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "Reading packet, opcode = %d \n\n", opcode);
+
 		if (opcode == OPCODE_BASE)
 		{
 			handleBaseRequest();
 		}
+		else if (opcode == OPCODE_TEST)
+		{
+			handleTestRequest();
+		}
 		else if (opcode == OPCODE_PHOTO)
 		{
 			handlePhotoRequest();
-
 		}
-		// else if (opcode==22) { // send us some number of packets after this one
-		//	packetCount = readShort();
-		//	if ((packetCount>0)&&(packetCount<=mMaxPackets))
-		//		mPacketCount = packetCount;
-		//}
 	}
 	clearReturnPacket();
 	//mServerStage = PacketRead;
@@ -321,24 +318,19 @@ void dataSource::connectSendSocket()
 	memset((void*)(mSendBuffer), 0, mPacketSize);
 	memset((void*)(mStringBuffer), 0, mPacketSize);
 
-
-
-
 	mWorkSockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (mWorkSockfd < 0) {
-		cout << "ERROR opening send socket\n";
+		std::cout << "ERROR opening send socket\n";
 		return;
 	}
 	
-
 	mReadyForRequests = true;
-	addBaseRequest();
-	//if (windows)
-	//u_long iMode=1;
-	//ioctlsocket(mWorkSockfd,O_NONBLOCK,&iMode);//Make it a non-blocking socket.
-	//endif
-
-
+	
+//#ifdef windows_OS //Whoops! I guess not! This breaks the hell out of everything.
+	//u_long iMode = 1;
+	//ioctlsocket(mWorkSockfd, FIONBIO,&iMode);//Make it a non-blocking socket.
+//#endif
+	
 #ifdef windows_OS
 	ZeroMemory((char*)&source_addr, sizeof(source_addr));
 #else
@@ -348,16 +340,18 @@ void dataSource::connectSendSocket()
 	source_addr.sin_family = AF_INET;
 	source_addr.sin_addr.s_addr = inet_addr(mSourceIP);
 	source_addr.sin_port = htons(mPort);
+
 	int connectCode = connect(mWorkSockfd, (struct sockaddr*) & source_addr, sizeof(source_addr));
 	if (connectCode < 0)
 	{
-		cout << "dataSource: ERROR connecting send socket, error: " << errno << " mWorkdSockfd " << mWorkSockfd << "\n";
+		std::cout << "dataSource: ERROR connecting send socket, error: " << errno << " mWorkdSockfd " << mWorkSockfd << "\n";
 		return;
 	}
-	else {
-		cout << "dataSource: SUCCESS connecting send socket:" << connectCode << " mWorkdSockfd " << mWorkSockfd << "\n";
+	else 
+	{
+		std::cout << "dataSource: SUCCESS connecting send socket:" << connectCode << " mWorkdSockfd " << mWorkSockfd << "\n";
+		mClientStage = ClientSocketConnected;
 	}
-	mClientStage = ClientSocketConnected;
 }
 
 void dataSource::sendPacket()
@@ -365,15 +359,15 @@ void dataSource::sendPacket()
 	memset((void*)(mStringBuffer), 0, mPacketSize);
 	memcpy((void*)mStringBuffer, reinterpret_cast<void*>(&mSendControls), sizeof(short));
 	memcpy((void*)&mStringBuffer[sizeof(short)], (void*)mSendBuffer, mPacketSize - sizeof(short));
-	cout << " SENDING - " << mSendByteCounter << " bytes! \n";
+	std::cout << " SENDING - " << mSendByteCounter << " bytes! \n";
 	int n = send(mWorkSockfd, mStringBuffer, mPacketSize, 0);
 	if (n < 0)
-		cout << "ERROR sending packet!  errno = " << errno << "\n";
+		std::cout << "ERROR sending packet!  errno = " << errno << "\n";
 
 	mLastSendTick = mCurrentTick;
-	cout << " clearing send packet!   currentTick = " << mCurrentTick << " \n";
 	clearSendPacket();
-	mClientStage = PacketSent;
+
+	mClientStage = ClientSocketConnected;
 }
 
 void dataSource::clearSendPacket()
@@ -513,10 +507,37 @@ void dataSource::addBaseRequest()
 void dataSource::handleBaseRequest()
 {
 	int tick = readInt();
+
 	if (mDebugToConsole)
-		cout << "handleBaseRequest clientTick = " << tick << ", my tick " << mCurrentTick << "\n";
+		std::cout << "handleBaseRequest clientTick = " << tick << ", my tick " << mCurrentTick << "\n";
 	if (mDebugToFile)
 		fprintf(mDebugLog, "handleBaseRequest clientTick %d, my tick %d\n\n", tick, mCurrentTick);
+}
+
+void dataSource::addTestRequest()
+{
+	short opcode = OPCODE_TEST;
+	mSendControls++;//(Increment this every time you add a control.)
+	writeShort(opcode);
+	writeInt(mCurrentTick * 2);
+	writeFloat((float)mCurrentTick * 0.999f);
+	writeDouble((float)mCurrentTick * 10000000.0f);
+	writeString("This is a test packet.");
+
+}
+
+void dataSource::handleTestRequest()
+{
+	int tick = readInt();
+	float f = readFloat();
+	double d = readDouble();
+	char myString[255];
+	sprintf(myString,readString());
+	
+	if (mDebugToConsole)
+		std::cout << "handleTestRequest tick*2 = " << tick << ", float = " << f << ", double = " << d << ", string ='" << myString << "'\n";
+	if (mDebugToFile)
+		fprintf(mDebugLog, "handleTestRequest tick*2 = %f, float = %f, double = %f,  string = '%s'\n\n", tick, f, d, myString);
 }
 
 void dataSource::addPhotoRequest(const char* cmdArgs)
@@ -533,14 +554,18 @@ void dataSource::handlePhotoRequest()
 	readString();
 	if (strlen(mStringBuffer) > 0)
 	{
+
+#ifdef windows_OS
+		std::cout << "handlePhotoRequest: " << mStringBuffer << "\n";
+#else             //Should there be a raspberry_OS and a linux_OS, rather than just yes/no on windows_OS?
 		sprintf(command, "%s %s", "raspistill ", mStringBuffer);
 		system(command);
 		if (mDebugToConsole)
-			cout << "Executing command: [" << command << "]\n";
+			std::cout << "Executing command: [" << command << "]\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "Executing command: %s \n\n", command);
-
-		mWorkSockfd = -1;
+		mWorkSockfd = -1;//? Necessary??
+#endif
 	}
 }
 

@@ -19,8 +19,8 @@ int main(int argc, char* argv[])
 	int server = 1;
 	int port = 9985;
 	int sleepMS = 30;
-	int maxTick = 500;//for testing, safety valve so we don't get stuck in endless loops.
-	strcpy_s(IP, "10.0.0.218");
+	int maxTick = 100;//for testing, safety valve so we don't get stuck in endless loops.
+	strcpy_s(IP, "127.0.0.1");
 
 	//Process command line arguments. //???
 	if (argc > 1)

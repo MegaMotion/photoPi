@@ -1,19 +1,22 @@
 //-----------------------------------------------------------------------------
-// Copyright (c) 2015 Chris Calef
+// Copyright (c) 2020 Chris Calef
 //-----------------------------------------------------------------------------
 
 #ifndef _DATASOURCE_H_
 #define _DATASOURCE_H_
 
 /////// Comment this out for linux builds.   //////////////
-//#define windows_OS 
+#define windows_OS 
 ///////////////////////////////////////////////////////////
 
-#define windows_OS
+//Needed in standalone version
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#pragma comment(lib, "Ws2_32.lib")
 
 #define OPCODE_BASE    1
+#define OPCODE_TEST    2
+
 #define OPCODE_PHOTO  51
 
 #include <stdio.h>
@@ -34,7 +37,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#pragma comment(lib, "Ws2_32.lib")
 
 enum serverConnectStage {
 	NoServerSocket,
@@ -58,13 +60,13 @@ class dataSource
 {
 public:
 	char mSourceIP[128];
+	unsigned int mPort;
 
+	//PhotoPi properties
 	std::string mStrFilename;
 	std::string mStrOptions;
 	std::string mStrEncoding;
-
-	unsigned int mPort;
-
+	
 	unsigned int mCurrentTick;
 	unsigned int mLastSendTick;//Last time we sent a packet.
 	unsigned int mLastSendTimeMS;//Last time we sent a packet.
@@ -130,19 +132,22 @@ public:
 	void writeFloat(float);
 	void writeDouble(double);
 	void writeString(const char*);
-	//void writePointer(void *);//Someday? Using boost?
+	//void writeBlob(void *);
 
 	short readShort();
 	int readInt();
 	float readFloat();
 	double readDouble();
 	char* readString();
-	//void *readPointer();
+	//void *readBlob();
 
 	void clearString();
 
 	void addBaseRequest();
 	void handleBaseRequest();
+
+	void addTestRequest();
+	void handleTestRequest();
 
 	void addPhotoRequest(const char* imgName);
 	void handlePhotoRequest();
