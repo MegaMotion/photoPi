@@ -17,6 +17,10 @@
 #define OPCODE_BASE    1
 #define OPCODE_TEST    2
 
+//controlDataSource
+#define OPCODE_QUIT 10
+
+//photoPi project
 #define OPCODE_PHOTO  51
 
 #include <stdio.h>
@@ -55,7 +59,6 @@ enum clientConnectStage {
 	PacketSent
 };
 
-/// Base class for various kinds of data sources, first one being worldDataSource, for terrain, sky, weather and map information.
 class dataSource
 {
 public:
@@ -107,7 +110,7 @@ public:
 
 	FILE* mDebugLog;
 
-	dataSource(bool listening, int port, char* IP);
+	   dataSource(bool listening, bool alternating, int port, char *IP);
 	~dataSource();
 
 	void tick();

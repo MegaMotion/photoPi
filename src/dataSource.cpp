@@ -8,7 +8,7 @@
 
 //#include "console/consoleTypes.h"//Torque specific, should do #ifdef TORQUE or something
 
-dataSource::dataSource(bool server, int port, char* IP)
+dataSource::dataSource(bool listening, bool alternating, int port, char *IP)
 {
 	mPort = port;
 	sprintf(mSourceIP, IP);
@@ -31,7 +31,6 @@ dataSource::dataSource(bool server, int port, char* IP)
 	mSendBuffer = NULL;
 	mStringBuffer = NULL;
 	mReadyForRequests = false;
-	mAlternating = false;
 
 	mDebugToConsole = true;
 	mDebugToFile = false;
@@ -41,11 +40,15 @@ dataSource::dataSource(bool server, int port, char* IP)
 
 	mServer = false;
 	mListening = false;
-	if (server)
+	if (listening)
 	{
 		mServer = true;
 		mListening = true;
 	}
+
+	mAlternating = false;
+	if (alternating)
+		mAlternating = true;
 
 #ifdef windows_OS
 	if (WSAStartup(MAKEWORD(1, 1), &wsaData) == SOCKET_ERROR) {
@@ -495,13 +498,13 @@ void dataSource::clearString()
 
 /////////////////////////////////////////////////////////////////////////////////
 
+
 void dataSource::addBaseRequest()
 {
 	short opcode = OPCODE_BASE;
-	mSendControls++;//(Increment this every time you add a control.)
+	mSendControls++;
 	writeShort(opcode);
 	writeInt(mCurrentTick);
-	//For a baseRequest, do nothing but send a tick value to make sure there's a connection.
 }
 
 void dataSource::handleBaseRequest()
@@ -517,13 +520,12 @@ void dataSource::handleBaseRequest()
 void dataSource::addTestRequest()
 {
 	short opcode = OPCODE_TEST;
-	mSendControls++;//(Increment this every time you add a control.)
+	mSendControls++;
 	writeShort(opcode);
 	writeInt(mCurrentTick * 2);
 	writeFloat((float)mCurrentTick * 0.999f);
 	writeDouble((float)mCurrentTick * 10000000.0f);
 	writeString("This is a test packet.");
-
 }
 
 void dataSource::handleTestRequest()
@@ -543,7 +545,7 @@ void dataSource::handleTestRequest()
 void dataSource::addPhotoRequest(const char* cmdArgs)
 {
 	short opcode = OPCODE_PHOTO;
-	mSendControls++;//(Increment this every time you add a control.)
+	mSendControls++;
 	writeShort(opcode);
 	writeString(cmdArgs);
 }
