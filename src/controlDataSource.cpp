@@ -19,7 +19,50 @@ controlDataSource::~controlDataSource()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+void controlDataSource::tick()
+{
+	if (mListening)
+	{
+		//Con::printf("controlDataSource tick %d server stage %d", mCurrentTick, mServerStage);
+		switch (mServerStage)
+		{
+		case NoServerSocket:
+			createListenSocket(); break;
+		case ServerSocketCreated:
+			bindListenSocket(); break;
+		case ServerSocketBound:
+			connectListenSocket(); break;
+		case ServerSocketListening:
+			listenForConnection(); break;
+		case ServerSocketAccepted:
+			receivePacket(); //this now calls readPacket
+			break;
+			//case PacketReceived:
+			//    readPacket();
+			//    break;
+			//case PacketRead:
+			//    mServerStage = ServerSocketListening;
+			//    break;
+		}
+	}
+	else
+	{
+		//Con::printf("controlDataSource tick %d client stage %d", mCurrentTick, mClientStage);
+		switch (mClientStage)
+		{
+		case NoClientSocket:
+			connectSendSocket(); break;
+		case ClientSocketCreated:
+			break;
+		case ClientSocketConnected:
+			addBaseRequest();
+			addTestRequest();
+			sendPacket();
+			break;
+		}
+	}
+	mCurrentTick++;
+}
 
 void controlDataSource::addQuitRequest()
 {

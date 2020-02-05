@@ -87,7 +87,7 @@ dataSource::~dataSource()
 
 void dataSource::tick()
 {
-	if (mServer)
+  if (mListening)
 	{
 		//	std::cout << "DataSource ticking: " << mCurrentTick << "  server stage: " << mServerStage << " \n";
 		switch (mServerStage)
@@ -101,12 +101,7 @@ void dataSource::tick()
 		case ServerSocketListening:
 			listenForConnection(); break;
 		case ServerSocketAccepted:
-			receivePacket(); break;
-		case PacketReceived:
 			readPacket(); break;
-		case PacketRead:
-			mServerStage = ServerSocketListening;
-			break;
 		}
 	}
 	else
@@ -241,27 +236,12 @@ void dataSource::listenForConnection()
 	}
 }
 
-void dataSource::receivePacket()
-{
-	int n = recv(mWorkSockfd, mReturnBuffer, mPacketSize, 0);
-	if (n < 0) {
-		if (mDebugToConsole)
-			std::cout << "ERROR in receivePacket.  Error: " << errno << "  " << strerror(errno) << "\n";
-		if (mDebugToFile)
-			fprintf(mDebugLog, "ERROR in receivePacket. Error: %d  %s\n\n", errno, strerror(errno));
-	}
-	else {
-		if (mDebugToConsole)
-			std::cout << "SUCCESS in receivePacket. Size = : " << n << "\n";
-		if (mDebugToFile)
-			fprintf(mDebugLog, "SUCCESS in receivePacket. Size: %d \n\n", n);
-		readPacket();
-		//mServerStage = PacketReceived;
-	}
-}
-
 void dataSource::readPacket()
 {
+	int n = recv(mWorkSockfd, mReturnBuffer, mPacketSize, 0);
+	if (n < 0)
+		return;
+
 	short opcode, controlCount;//,packetCount;
 	controlCount = readShort();
 	for (short i = 0; i < controlCount; i++)
@@ -289,6 +269,8 @@ void dataSource::readPacket()
 	clearReturnPacket();
 	//mServerStage = PacketRead;
 	mServerStage = ServerSocketAccepted;
+    if (mAlternating)
+        mListening = false;
 }
 
 void dataSource::allocateBuffers()
@@ -307,7 +289,6 @@ void dataSource::allocateBuffers()
 	}
 }
 
-/////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
 void dataSource::connectSendSocket()
@@ -366,6 +347,11 @@ void dataSource::sendPacket()
 	int n = send(mWorkSockfd, mStringBuffer, mPacketSize, 0);
 	if (n < 0)
 		std::cout << "ERROR sending packet!  errno = " << errno << "\n";
+	else 
+    {
+        if (mAlternating)
+            mListening = true; 
+    }
 
 	mLastSendTick = mCurrentTick;
 	clearSendPacket();

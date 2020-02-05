@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 	cout << "\n\n--- Data Source Socket Library Test Program ---\n  arg count  " << argc << "  server " << server <<
 		" port " << port << " IP " << IP << " \n\n";
 
-	dataSource* dataSrc = new dataSource(server, port, IP);
+	dataSource* dataSrc = new dataSource(server, false, port, IP);
 	while (dataSrc->mCurrentTick < maxTick) //!(dataSrc->mFinished) )
 	{
 		dataSrc->tick();

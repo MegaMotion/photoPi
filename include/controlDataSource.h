@@ -21,6 +21,8 @@ class controlDataSource : public dataSource
 	   controlDataSource(bool listening, bool alternating, int port, char *IP);
 	   ~controlDataSource();
 
+	   void tick();
+
 	   void addQuitRequest();
 	   void handleQuitRequest();
 

@@ -119,7 +119,6 @@ public:
 	void bindListenSocket();
 	void connectListenSocket();
 	void listenForConnection();
-	void receivePacket();
 	void readPacket();
 	void clearReturnPacket();
 	void allocateBuffers();
