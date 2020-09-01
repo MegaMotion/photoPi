@@ -20,7 +20,12 @@ int main(int argc, char* argv[])
 	int port = 9985;
 	int sleepMS = 30;
 	int maxTick = 10000;//for testing, safety valve so we don't get stuck in endless loops.
+	
+#ifdef windows_OS
 	strcpy_s(IP, "127.0.0.1");
+#else
+	strcpy(IP, "127.0.0.1");
+#endif
 
 	//Process command line arguments. //???
 	if (argc > 1)
