@@ -19,7 +19,7 @@ int main(int argc, char* argv[])
 	int server = 1;
 	int port = 9985;
 	int sleepMS = 30;
-	int maxTick = 100;//for testing, safety valve so we don't get stuck in endless loops.
+	int maxTick = 10000;//for testing, safety valve so we don't get stuck in endless loops.
 	strcpy_s(IP, "127.0.0.1");
 
 	//Process command line arguments. //???
@@ -28,16 +28,22 @@ int main(int argc, char* argv[])
 
 	if (argc > 2)
 	{
-#ifdef windows_OS
-		strcpy_s(IP, argv[2]);
-#else
-		strcpy(IP, argv[2]);
-#endif
+		port = atoi(argv[2]);
 	}
 
 	if (argc > 3)
-		port = atoi(argv[3]);
+	{
+#ifdef windows_OS
+		strcpy_s(IP, argv[3]);
+#else
+		strcpy(IP, argv[3]);
+#endif
+	}
 
+	if (argc > 4)
+	{
+		sleepMS = atoi(argv[4]);
+	}
 
 	cout << "\n\n--- Data Source Socket Library Test Program ---\n  arg count  " << argc << "  server " << server <<
 		" port " << port << " IP " << IP << " \n\n";

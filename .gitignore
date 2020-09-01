@@ -6,4 +6,5 @@ dataSourceTest.exe
 *.png
 *.bmp
 
+testBuild/*
 

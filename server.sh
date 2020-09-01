@@ -1,1 +1,1 @@
-./photoPi 10.0.0.242
+./dataSourceTest.exe 1 9985 10.0.0.218 30

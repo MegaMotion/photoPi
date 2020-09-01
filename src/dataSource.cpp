@@ -116,8 +116,8 @@ void dataSource::tick()
 			break;
 		case ClientSocketConnected:
 			addBaseRequest();
-			//addPhotoRequest("myPhoto167.jpg");
-			addTestRequest();
+			addPhotoRequest("myPhoto167.jpg");
+			//addTestRequest();
 			sendPacket();
 			break;
 		}
@@ -179,7 +179,7 @@ void dataSource::bindListenSocket()
 	if (bind(mListenSockfd, (struct sockaddr*) & source_addr, sizeof(source_addr)) < 0)
 	{
 		if (mDebugToConsole)
-			std::cout << "ERROR in bindListenSocket. Error: " << errno << " " << strerror(errno) << "\n";
+			std::cout << "ERROR in bindListenSocket.  sourceIP: " << mSourceIP <<  " Error: " << errno << " " << strerror(errno) << "\n";
 		if (mDebugToFile)
 			fprintf(mDebugLog, "ERROR in bindListenSocket. Error: %d  %s\n\n", errno, strerror(errno));
 	}
